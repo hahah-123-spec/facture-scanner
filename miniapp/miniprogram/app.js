@@ -2,8 +2,8 @@ const { getToken } = require('./utils/auth');
 
 App({
   globalData: {
-    supabaseUrl: 'https://YOUR_PROJECT.supabase.co',
-    anonKey: 'YOUR_ANON_KEY',
+    supabaseUrl: 'https://uujhooozssitwxqedifa.supabase.co',
+    anonKey: 'sb_publishable_4hv0MhC53QLiedOJYwrJ8A_5wnedcPn',
     userInfo: null
   },
 

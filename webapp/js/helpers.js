@@ -1,4 +1,14 @@
-/* Global Helper Functions: Toast, Loading, Modal */
+/* Global Helper Functions: Toast, Loading, Modal, Shared Data */
+
+/* ---- Shared constants ---- */
+var MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+var MESES_CORTOS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+var CAT_COLORS = { productos: '#2D5A9E', plantas: '#1F7D53', suministros: '#D4793A', servicios: '#6B7280', transporte: '#C2413E', otros: '#9CA3AF' };
+
+function formatMonthLabel(ym) {
+  var parts = ym.split('-');
+  return MESES[parseInt(parts[1], 10) - 1] + ' ' + parts[0];
+}
 
 /* ---- Toast ---- */
 function showToast(message, type) {

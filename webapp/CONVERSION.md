@@ -92,7 +92,7 @@ webapp/
 ```javascript
 const CONFIG = {
   supabaseUrl: 'https://uujhooozssitwxqedifa.supabase.co',
-  anonKey: 'sb_publishable_4hv0MhC53QLiedOJYwrJ8A_5wnedcPn'
+  anonKey: 'YOUR_SUPABASE_ANON_KEY'
 };
 ```
 

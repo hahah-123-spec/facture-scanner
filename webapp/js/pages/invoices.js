@@ -102,10 +102,7 @@ var pageInvoices = {
     var self = this;
     var monthLabel = document.getElementById('monthLabel');
     if (monthLabel) {
-      var parts = this._currentMonth.split('-');
-      var monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-                        'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-      monthLabel.textContent = monthNames[parseInt(parts[1], 10) - 1] + ' ' + parts[0];
+      monthLabel.textContent = formatMonthLabel(self._currentMonth);
     }
 
     var searchText = '';
@@ -435,31 +432,7 @@ var pageInvoices = {
     });
   },
 
-  _handleDelete: function () {
-    var self = this;
-    showConfirm(
-      'Eliminar factura',
-      'Esta accion no se puede deshacer. Deseas continuar?',
-      'Eliminar',
-      'Cancelar'
-    ).then(function (confirmed) {
-      if (!confirmed) return;
-      showLoading('Eliminando...');
-      return invoices.delete(self._invoice.id);
-    }).then(function () {
-      hideLoading();
-      showToast('Factura eliminada', 'success');
-      Router.navigate('invoices');
-    }).catch(function (err) {
-      if (err) {
-        hideLoading();
-        console.error('Delete error:', err);
-        showToast('Error al eliminar', 'error');
-      }
-    });
-  },
-
-  _handleListDelete: function (id) {
+  _doDelete: function (id, onDeleted) {
     var self = this;
     showConfirm(
       'Eliminar factura',
@@ -473,7 +446,7 @@ var pageInvoices = {
     }).then(function () {
       hideLoading();
       showToast('Factura eliminada', 'success');
-      self._loadList(); // refresh the list
+      if (onDeleted) onDeleted();
     }).catch(function (err) {
       if (err) {
         hideLoading();
@@ -481,6 +454,15 @@ var pageInvoices = {
         showToast('Error al eliminar', 'error');
       }
     });
+  },
+
+  _handleDelete: function () {
+    this._doDelete(this._invoice.id, function () { Router.navigate('invoices'); });
+  },
+
+  _handleListDelete: function (id) {
+    var self = this;
+    this._doDelete(id, function () { self._loadList(); });
   },
 
   /* ---- Helpers ---- */

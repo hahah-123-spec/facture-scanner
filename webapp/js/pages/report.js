@@ -21,7 +21,7 @@ var pageReport = {
   /* ---- Layout ---- */
   _renderLayout: function () {
     var isMonth = this._mode === 'month';
-    var periodLabel = isMonth ? this._formatMonthLabel(this._currentMonth) : this._currentYear;
+    var periodLabel = isMonth ? formatMonthLabel(this._currentMonth) : this._currentYear;
 
     this._el.innerHTML =
       /* Period toggle */
@@ -96,7 +96,7 @@ var pageReport = {
     var periodLabel = document.getElementById('reportPeriodLabel');
     if (periodLabel) {
       periodLabel.textContent = this._mode === 'month'
-        ? this._formatMonthLabel(this._currentMonth)
+        ? formatMonthLabel(this._currentMonth)
         : this._currentYear;
     }
 
@@ -205,10 +205,11 @@ var pageReport = {
       var amount = catMap[catDef.value];
       if (!amount) continue;
       var pct = total > 0 ? Math.round(amount / total * 100) : 0;
+      var color = CAT_COLORS[catDef.value] || '#2D5A9E';
       html +=
         '<div class="category-item">' +
           '<span class="cat-label">' + catDef.icon + ' ' + catDef.label + '</span>' +
-          '<div class="cat-bar-bg"><div class="cat-bar-fill" style="width:' + pct + '%"></div></div>' +
+          '<div class="cat-bar-bg"><div class="cat-bar-fill" style="width:' + pct + '%;background:' + color + '"></div></div>' +
           '<span class="cat-amount">' + amount.toFixed(0) + ' €</span>' +
           '<span class="cat-pct">' + pct + '%</span>' +
         '</div>';
@@ -225,7 +226,7 @@ var pageReport = {
     container.style.display = this._mode === 'year' ? 'block' : 'none';
     if (this._mode !== 'year') return;
 
-    var monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+    var monthNames = MESES_CORTOS;
     var maxAmount = 0;
     for (var mm in monthMap) {
       if (monthMap[mm] > maxAmount) maxAmount = monthMap[mm];
@@ -304,13 +305,6 @@ var pageReport = {
       return '"' + s.replace(/"/g, '""') + '"';
     }
     return s;
-  },
-
-  /* ---- Helpers ---- */
-  _formatMonthLabel: function (ym) {
-    var parts = ym.split('-');
-    var names = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-    return names[parseInt(parts[1], 10) - 1] + ' ' + parts[0];
   },
 
   destroy: function () {

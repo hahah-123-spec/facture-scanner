@@ -412,7 +412,7 @@ input, select, textarea, button {
 /* ==========================================
    Page: Login
    ========================================== */
-#page-login {
+#page-login.active {
   display: flex;
   flex-direction: column;
   align-items: center;

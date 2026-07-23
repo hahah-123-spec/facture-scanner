@@ -145,20 +145,48 @@ var pageScan = {
       });
     }
 
-    // Auto-compute total when base or iva changes
+    // Auto-compute: Base + IVA ⇄ Total (bidirectional)
     var baseField = document.getElementById('field-base_amount');
     var ivaField = document.getElementById('field-iva_rate');
     var totalField = document.getElementById('field-total_amount');
     if (baseField && ivaField && totalField) {
-      var computeTotal = function () {
+      var computing = false; // prevent recursion
+
+      var computeTotalFromBase = function () {
+        if (computing) return;
+        computing = true;
         var base = parseFloat(baseField.value) || 0;
         var rate = parseFloat(ivaField.value) || 0;
         if (base > 0 && rate > 0) {
           totalField.value = (base + base * rate / 100).toFixed(2);
         }
+        computing = false;
       };
-      baseField.addEventListener('input', computeTotal);
-      ivaField.addEventListener('input', computeTotal);
+
+      var computeBaseFromTotal = function () {
+        if (computing) return;
+        computing = true;
+        var total = parseFloat(totalField.value) || 0;
+        var rate = parseFloat(ivaField.value) || 0;
+        if (total > 0 && rate > 0) {
+          baseField.value = (total / (1 + rate / 100)).toFixed(2);
+        }
+        computing = false;
+      };
+
+      // Prioritize: if user edits Total → recompute Base. If edits Base → recompute Total
+      // When IVA changes: if Total is filled → update Base; else if Base is filled → update Total
+      baseField.addEventListener('input', computeTotalFromBase);
+      totalField.addEventListener('input', computeBaseFromTotal);
+      ivaField.addEventListener('input', function () {
+        var total = parseFloat(totalField.value) || 0;
+        var base = parseFloat(baseField.value) || 0;
+        if (total > 0) {
+          computeBaseFromTotal();
+        } else if (base > 0) {
+          computeTotalFromBase();
+        }
+      });
     }
   },
 
@@ -314,36 +342,52 @@ var pageScan = {
 
     // ----- DATE EXTRACTION -----
     var date = '';
-    // Strategy 1: find "Fecha" keyword nearby
-    for (var i = 0; i < lines.length; i++) {
-      if (/fecha/i.test(lines[i])) {
-        // Look in this line and next 2 lines for dd/mm/yyyy
-        var context = lines.slice(i, i + 3).join(' ');
-        var dm = context.match(/(\d{2})[\/\-\.](\d{2})[\/\-\.](\d{4})/);
-        if (dm) {
-          var dd = parseInt(dm[1], 10);
-          var mm = parseInt(dm[2], 10);
-          var yy = parseInt(dm[3], 10);
-          // Validate: dd 1-31, mm 1-12, yy 2000-2099
-          if (dd >= 1 && dd <= 31 && mm >= 1 && mm <= 12 && yy >= 2000) {
-            date = dm[3] + '-' + dm[2] + '-' + dm[1];
-            break;
+
+    // Month name mapping (Spanish → number)
+    var monthNames = {
+      'enero': '01', 'febrero': '02', 'marzo': '03', 'abril': '04',
+      'mayo': '05', 'junio': '06', 'julio': '07', 'agosto': '08',
+      'septiembre': '09', 'octubre': '10', 'noviembre': '11', 'diciembre': '12'
+    };
+
+    // Helper: validate and format date parts → yyyy-mm-dd
+    var makeDate = function (d, m, y) {
+      var dd = parseInt(d, 10), mm = parseInt(m, 10), yy = parseInt(y, 10);
+      if (dd >= 1 && dd <= 31 && mm >= 1 && mm <= 12 && yy >= 2000 && yy <= 2100) {
+        return yy + '-' + String(mm).padStart(2, '0') + '-' + String(dd).padStart(2, '0');
+      }
+      return '';
+    };
+
+    // Strategy 1: Spanish text date "15 de julio de 2026"
+    var textDateMatch = text.match(/(\d{1,2})\s+de\s+(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\s+(?:de\s+)?(\d{4})/i);
+    if (textDateMatch) {
+      var mth = monthNames[textDateMatch[2].toLowerCase()];
+      date = makeDate(textDateMatch[1], mth, textDateMatch[3]);
+    }
+
+    // Strategy 2: find "Fecha" keyword nearby — check 3 lines around it
+    if (!date) {
+      for (var i = 0; i < lines.length; i++) {
+        if (/fecha/i.test(lines[i])) {
+          var context = lines.slice(i, i + 4).join(' ');
+          // Try dd/mm/yyyy with 1-2 digit day/month (handle OCR errors like 5/7/2026 or 1S/07/2026)
+          var dm = context.match(/(\d{1,2})\s*[\/\-\.,\|]\s*(\d{1,2})\s*[\/\-\.,\|]\s*(\d{4})/);
+          if (dm) {
+            date = makeDate(dm[1], dm[2], dm[3]);
+            if (date) break;
           }
         }
       }
     }
-    // Strategy 2: find any valid Spanish date in entire text
+
+    // Strategy 3: find ANY valid dd/mm/yyyy in text (flexible 1-2 digits)
     if (!date) {
-      var allDateMatches = text.match(/(\d{2})[\/\-\.](\d{2})[\/\-\.](\d{4})/g) || [];
+      var allDateMatches = text.match(/\d{1,2}\s*[\/\-\.,\|]\s*\d{1,2}\s*[\/\-\.,\|]\s*\d{4}/g) || [];
       for (var j = 0; j < allDateMatches.length; j++) {
-        var adm = allDateMatches[j].match(/(\d{2})[\/\-\.](\d{2})[\/\-\.](\d{4})/);
-        var dd2 = parseInt(adm[1], 10);
-        var mm2 = parseInt(adm[2], 10);
-        var yy2 = parseInt(adm[3], 10);
-        if (dd2 >= 1 && dd2 <= 31 && mm2 >= 1 && mm2 <= 12 && yy2 >= 2000) {
-          date = adm[3] + '-' + adm[2] + '-' + adm[1];
-          break;
-        }
+        var adm = allDateMatches[j].match(/(\d{1,2})\s*[\/\-\.,\|]\s*(\d{1,2})\s*[\/\-\.,\|]\s*(\d{4})/);
+        date = makeDate(adm[1], adm[2], adm[3]);
+        if (date) break;
       }
     }
 
@@ -622,7 +666,19 @@ var pageScan = {
       if (err === null) return;
       hideLoading();
       console.error('Save error:', err);
-      showToast('Error al guardar la factura', 'error');
+      var msg = 'Error al guardar';
+      if (err && err.message) {
+        if (err.message.indexOf('duplicate') !== -1 || err.code === '23505') {
+          msg = 'Factura duplicada';
+        } else if (err.message.indexOf('JWT') !== -1 || err.status === 401 || err.status === 403) {
+          msg = 'Sesion expirada, vuelve a iniciar sesion';
+        } else if (err.message.indexOf('network') !== -1 || err.message.indexOf('fetch') !== -1) {
+          msg = 'Error de conexion, revisa tu internet';
+        } else {
+          msg = 'Error: ' + (err.message || JSON.stringify(err));
+        }
+      }
+      showToast(msg, 'error');
     }).finally(function () {
       self._state.saving = false;
     });

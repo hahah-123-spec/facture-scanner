@@ -44,6 +44,11 @@ var invoices = {
   },
 
   create: async function (data) {
+    // Ensure user_id is always set for RLS
+    var userResult = await supabaseClient.auth.getUser();
+    if (userResult.data && userResult.data.user) {
+      data.user_id = userResult.data.user.id;
+    }
     var result = await supabaseClient
       .from('invoices')
       .insert([data])

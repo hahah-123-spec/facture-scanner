@@ -1,5 +1,5 @@
 /* Service Worker — cache static assets for offline + fast reload */
-var CACHE = 'facture-v2';
+var CACHE = 'facture-v3';
 var ASSETS = [
   '.',
   'css/app.css',

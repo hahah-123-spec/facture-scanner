@@ -1,0 +1,8 @@
+.card-row-top { display: flex; justify-content: space-between; align-items: baseline; }
+.supplier { font-size: 16px; font-weight: 500; color: var(--ink-black); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.amount { font-size: 22px; font-weight: bold; color: var(--ink-black); flex-shrink: 0; margin-left: 12px; }
+.card-row-bottom { display: flex; align-items: center; margin-top: 8px; }
+.date { font-size: 14px; color: var(--steel-gray); }
+.sep { margin: 0 6px; color: var(--pale-ink); }
+.category { font-size: 14px; color: var(--ink-blue); }
+.iva { font-size: 12px; color: var(--steel-gray); margin-left: 6px; }

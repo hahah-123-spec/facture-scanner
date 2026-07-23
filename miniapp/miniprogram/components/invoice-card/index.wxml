@@ -1,0 +1,12 @@
+<view class="card" bindtap="onTap">
+  <view class="card-row-top">
+    <text class="supplier">{{invoice.supplier_name}}</text>
+    <text class="amount">€{{invoice.total_amount}}</text>
+  </view>
+  <view class="card-row-bottom">
+    <text class="date">{{invoice.invoice_date}}</text>
+    <text class="sep">·</text>
+    <text class="category">{{invoice.category}}</text>
+    <text class="iva" wx:if="{{invoice.iva_rate}}">IVA {{invoice.iva_rate}}%</text>
+  </view>
+</view>

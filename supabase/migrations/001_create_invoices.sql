@@ -1,7 +1,7 @@
 -- supabase/migrations/001_create_invoices.sql
 CREATE TABLE invoices (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id uuid REFERENCES auth.users,
+  user_id uuid REFERENCES auth.users NOT NULL,
   supplier_name text NOT NULL,
   supplier_nif text,
   invoice_number text,
@@ -18,7 +18,7 @@ CREATE TABLE invoices (
 );
 
 ALTER TABLE invoices ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Shared access" ON invoices FOR ALL USING (true);
+CREATE POLICY "Shared access" ON invoices FOR ALL USING (auth.role() = 'authenticated');
 
 -- 存储桶
 INSERT INTO storage.buckets (id, name, public) VALUES ('invoices', 'invoices', true);

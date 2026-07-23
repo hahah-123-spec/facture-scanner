@@ -5,7 +5,8 @@ const { CATEGORIES, getLabel } = require('../../utils/categories');
 // 用于 CSV 转义：包含逗号/引号/换行的字段用双引号包裹
 function escCsv(v) {
   const s = String(v ?? '');
-  return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g, '""')}"` : s;
+  const needsQuoting = s.includes(',') || s.includes('"') || s.includes('\n') || /^[=+\-@]/.test(s);
+  return needsQuoting ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
 Page({

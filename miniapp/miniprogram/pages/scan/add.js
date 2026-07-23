@@ -23,15 +23,13 @@ Page({
       success: async (res) => {
         const path = res.tempFilePaths[0];
         this.setData({ photoPath: path, ocrLoading: true });
-
-        // 上传图片
-        const filename = `incoming/${Date.now()}.jpg`;
-        await uploadImage(path, filename);
-        const imageUrl = getPublicUrl(filename);
-        this.setData({ _imageFilename: filename });
-
-        // 调用 OCR
         try {
+          // 上传图片
+          const filename = `incoming/${Date.now()}.jpg`;
+          await uploadImage(path, filename);
+          this.setData({ _imageFilename: filename });
+
+          // 调用 OCR
           const ocrRes = await new Promise((resolve, reject) => {
             wx.request({
               url: `${app.globalData.supabaseUrl}/functions/v1/ocr-invoice`,
@@ -70,8 +68,8 @@ Page({
     this.setData({ form });
   },
   onCategoryChange(e) {
-    const cats = ['productos', 'plantas', 'suministros', 'servicios', 'transporte', 'otros'];
-    const form = { ...this.data.form, category: cats[e.detail.value] };
+    const cat = this.data.categories[e.detail.value];
+    const form = { ...this.data.form, category: cat.value };
     this.setData({ form, categoryIndex: e.detail.value });
   },
   async onSave() {

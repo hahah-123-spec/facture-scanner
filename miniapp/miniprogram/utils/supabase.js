@@ -34,8 +34,11 @@ const invoices = {
   list(params = {}) {
     const qs = [];
     if (params.month) {
+      // 使用下个月第一天作为上界，避免 31 日硬编码导致的二月/小月问题
+      const [y, m] = params.month.split('-').map(Number);
+      const next = new Date(y, m, 1);
       qs.push(`invoice_date=gte.${params.month}-01`);
-      qs.push(`invoice_date=lte.${params.month}-31`);
+      qs.push(`invoice_date=lt.${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}-01`);
     }
     if (params.search) qs.push(`supplier_name=ilike.*${params.search}*`);
     qs.push('order=invoice_date.desc');

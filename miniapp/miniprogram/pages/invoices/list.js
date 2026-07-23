@@ -7,6 +7,7 @@ Page({
     searchText: '',
     loading: false
   },
+  searchTimer: null,
   onShow() {
     const now = new Date();
     const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -26,7 +27,8 @@ Page({
   },
   onSearchInput(e) {
     this.setData({ searchText: e.detail.value });
-    this.loadInvoices();
+    clearTimeout(this.searchTimer);
+    this.searchTimer = setTimeout(() => this.loadInvoices(), 300);
   },
   onPrevMonth() {
     const d = new Date(this.data.currentMonth + '-01');

@@ -167,14 +167,26 @@ var pageScan = {
     this._state.ocrLoading = true;
     var ocrEl = document.getElementById('ocrLoading');
     if (ocrEl) ocrEl.classList.add('show');
-    showLoading('Reconociendo con OCR...');
+    showLoading('Preparando OCR...');
+
+    var updateProgress = function (status, pct) {
+      var txtEl = document.getElementById('loadingText');
+      if (!txtEl) return;
+      var msgs = {
+        'loading tesseract core': 'Descargando motor OCR...',
+        'initializing tesseract': 'Inicializando motor...',
+        'loading language traineddata': 'Descargando espanol ' + pct + '%',
+        'initializing api': 'Preparando reconocimiento...',
+        'recognizing text': 'Reconociendo texto... ' + pct + '%'
+      };
+      txtEl.textContent = msgs[status] || (status + '...');
+    };
 
     Tesseract.recognize(file, 'spa', {
       logger: function (m) {
-        if (m.status === 'recognizing text') {
-          var pct = Math.round(m.progress * 100);
-          document.getElementById('loadingText').textContent = 'Reconociendo... ' + pct + '%';
-        }
+        if (!m || !m.status) return;
+        var pct = m.progress ? Math.round(m.progress * 100) : 0;
+        updateProgress(m.status, pct);
       }
     }).then(function (result) {
       var text = result.data.text;
@@ -182,8 +194,9 @@ var pageScan = {
 
       // Extract fields using same regex as original
       var supplier = lines.find(function (l) { return /^[A-Z][A-Za-zÀ-ÿ\s]{3,}$/.test(l); }) || '';
-      var dateMatch = text.match(/(\d{2}[\/\-\.]\d{2}[\/\-\.]\d{4})/);
-      var date = dateMatch ? dateMatch[1].replace(/\./g, '/') : '';
+      // Spanish date: dd/mm/yyyy → yyyy-mm-dd for input[type=date]
+      var dateMatch = text.match(/(\d{2})[\/\-\.](\d{2})[\/\-\.](\d{4})/);
+      var date = dateMatch ? dateMatch[3] + '-' + dateMatch[2] + '-' + dateMatch[1] : '';
 
       var amounts = text.match(/(\d+[.,]\d{2})\s*€?/g) || [];
       var parsed = amounts.map(function (a) { return parseFloat(a.replace(',', '.').replace('€', '')); }).filter(function (n) { return !isNaN(n); });

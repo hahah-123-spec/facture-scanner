@@ -1,4 +1,4 @@
-const CATEGORIES = [
+var CATEGORIES = [
   { value: 'productos',  label: 'Compra - Productos',   icon: '📦' },
   { value: 'plantas',    label: 'Compra - Plantas/Flores', icon: '🌿' },
   { value: 'suministros',label: 'Agua/Luz/Internet',    icon: '⚡' },
@@ -8,6 +8,6 @@ const CATEGORIES = [
 ];
 
 function getLabel(value) {
-  const cat = CATEGORIES.find(function(c) { return c.value === value; });
+  var cat = CATEGORIES.find(function(c) { return c.value === value; });
   return cat ? cat.label : value;
 }

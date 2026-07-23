@@ -46,6 +46,13 @@ var auth = {
     return result.data ? result.data.user : null;
   },
 
+  leaveWorkspace: async function () {
+    var result = await supabaseClient.rpc('leave_workspace');
+    if (result.error) throw result.error;
+    await auth._loadWorkspace();
+    return WS;
+  },
+
   joinWorkspace: async function (inviteCode) {
     var result = await supabaseClient.rpc('join_workspace', { p_invite_code: inviteCode.toUpperCase() });
     if (result.error) throw result.error;

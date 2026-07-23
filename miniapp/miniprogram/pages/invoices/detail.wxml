@@ -1,5 +1,52 @@
-<view class="container">
-  <view class="card">
-    <text class="text-title">发票详情</text>
+<view class="detail-page" wx:if="{{invoice}}">
+  <!-- 照片 -->
+  <image wx:if="{{imageUrl}}" src="{{imageUrl}}" mode="widthFix" class="invoice-image" />
+
+  <!-- 字段 -->
+  <view class="fields">
+    <view class="field-group">
+      <text class="field-label">供应商</text>
+      <input class="field-input" value="{{invoice.supplier_name}}" data-field="supplier_name" bindinput="onFieldChange" disabled="{{!editing}}" />
+    </view>
+    <view class="field-row">
+      <view class="field-group half">
+        <text class="field-label">日期</text>
+        <input class="field-input" value="{{invoice.invoice_date}}" data-field="invoice_date" bindinput="onFieldChange" disabled="{{!editing}}" />
+      </view>
+      <view class="field-group half">
+        <text class="field-label">发票号</text>
+        <input class="field-input" value="{{invoice.invoice_number}}" data-field="invoice_number" bindinput="onFieldChange" disabled="{{!editing}}" />
+      </view>
+    </view>
+    <view class="field-group">
+      <text class="field-label">Base Imponible (€)</text>
+      <input class="field-input amount-input" type="digit" value="{{invoice.base_amount}}" data-field="base_amount" bindinput="onFieldChange" disabled="{{!editing}}" />
+    </view>
+    <view class="field-group">
+      <text class="field-label">IVA (%)</text>
+      <input class="field-input" type="digit" value="{{invoice.iva_rate}}" bindinput="onIvaRateChange" disabled="{{!editing}}" />
+    </view>
+    <view class="field-group">
+      <text class="field-label">Total (€)</text>
+      <input class="field-input amount-input" type="digit" value="{{invoice.total_amount}}" data-field="total_amount" bindinput="onFieldChange" disabled="{{!editing}}" />
+    </view>
+    <view class="field-group">
+      <text class="field-label">分类</text>
+      <picker range="{{categories}}" range-key="label" value="{{0}}" bindchange="onCategoryChange" disabled="{{!editing}}">
+        <view class="picker-value">{{invoice.category}}</view>
+      </picker>
+    </view>
+    <view class="field-group">
+      <text class="field-label">备注</text>
+      <textarea class="field-textarea" value="{{invoice.notes}}" data-field="notes" bindinput="onFieldChange" disabled="{{!editing}}" />
+    </view>
+  </view>
+
+  <!-- 按钮 -->
+  <view class="detail-actions">
+    <button wx:if="{{!editing}}" class="btn-primary" bindtap="setEditing" data-arg="{{true}}">编辑</button>
+    <button wx:if="{{editing}}" class="btn-primary" bindtap="onSave">保存</button>
+    <button wx:if="{{editing}}" class="btn-secondary" bindtap="setEditing" data-arg="{{false}}">取消</button>
+    <button class="btn-danger" bindtap="onDelete">删除</button>
   </view>
 </view>

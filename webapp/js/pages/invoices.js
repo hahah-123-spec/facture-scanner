@@ -74,6 +74,14 @@ var pageInvoices = {
     var listEl = document.getElementById('invoiceList');
     if (listEl) {
       listEl.addEventListener('click', function (e) {
+        // Delete button click → stop propagation
+        var delBtn = e.target.closest('[data-delete]');
+        if (delBtn) {
+          e.stopPropagation();
+          self._handleListDelete(delBtn.getAttribute('data-delete'));
+          return;
+        }
+        // Card click → detail
         var card = e.target.closest('.invoice-card');
         if (card && card.dataset.id) {
           self._loadAndRenderDetail(card.dataset.id);
@@ -146,6 +154,7 @@ var pageInvoices = {
             '<span>' + self._fmtDate(inv.invoice_date) + '</span>' +
             '<span class="category-tag">' + catLabel + '</span>' +
           '</div>' +
+          '<button class="card-delete-btn" data-delete="' + inv.id + '" title="Eliminar">&#128465;</button>' +
         '</div>';
     }
     listEl.innerHTML = html;
@@ -426,6 +435,30 @@ var pageInvoices = {
       hideLoading();
       showToast('Factura eliminada', 'success');
       Router.navigate('invoices');
+    }).catch(function (err) {
+      if (err) {
+        hideLoading();
+        console.error('Delete error:', err);
+        showToast('Error al eliminar', 'error');
+      }
+    });
+  },
+
+  _handleListDelete: function (id) {
+    var self = this;
+    showConfirm(
+      'Eliminar factura',
+      'Esta accion no se puede deshacer. Deseas continuar?',
+      'Eliminar',
+      'Cancelar'
+    ).then(function (confirmed) {
+      if (!confirmed) return;
+      showLoading('Eliminando...');
+      return invoices.delete(id);
+    }).then(function () {
+      hideLoading();
+      showToast('Factura eliminada', 'success');
+      self._loadList(); // refresh the list
     }).catch(function (err) {
       if (err) {
         hideLoading();

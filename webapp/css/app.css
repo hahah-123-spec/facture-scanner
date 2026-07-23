@@ -528,6 +528,28 @@ input, select, textarea, button {
 }
 .invoice-card:active { transform: scale(0.98); }
 
+.invoice-card { position: relative; }
+.invoice-card .card-delete-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--steel-gray);
+  font-size: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  z-index: 2;
+  -webkit-tap-highlight-color: transparent;
+}
+.invoice-card .card-delete-btn:hover { background: rgba(194, 65, 62, 0.12); color: var(--seal-red); }
+.invoice-card .card-delete-btn:active { background: rgba(194, 65, 62, 0.2); color: var(--seal-red); }
+
 .invoice-card-header {
   display: flex;
   justify-content: space-between;

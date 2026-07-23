@@ -1,0 +1,173 @@
+/* miniapp/miniprogram/pages/scan/add.wxss */
+.scan-page {
+  padding: 16px;
+  padding-bottom: 40px;
+  min-height: 100vh;
+}
+
+/* 拍照区域（未拍照时） */
+.photo-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  background: #fff;
+  border: 2px dashed var(--pale-ink);
+  border-radius: 12px;
+  padding: 40px 16px;
+  margin-bottom: 16px;
+}
+
+.photo-icon {
+  font-size: 48px;
+  margin-bottom: 12px;
+}
+
+.photo-text {
+  font-size: 16px;
+  color: var(--ink-blue);
+  font-weight: 500;
+  margin-bottom: 4px;
+}
+
+.photo-hint {
+  font-size: 13px;
+  color: var(--steel-gray);
+}
+
+/* 照片预览 */
+.photo-preview {
+  position: relative;
+  margin-bottom: 16px;
+}
+
+.preview-image {
+  width: 100%;
+  height: 220px;
+  border-radius: 8px;
+  background: var(--paper-texture);
+}
+
+.photo-retake {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.photo-retake:active {
+  opacity: 0.8;
+}
+
+/* OCR 加载 */
+.ocr-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 48px 0;
+}
+
+.ocr-spinner {
+  font-size: 40px;
+  margin-bottom: 8px;
+}
+
+.ocr-text {
+  font-size: 15px;
+  color: var(--steel-gray);
+}
+
+/* 表单 */
+.scan-form {
+  margin-top: 8px;
+}
+
+.field {
+  margin-bottom: 14px;
+}
+
+.field-row {
+  display: flex;
+  gap: 12px;
+}
+
+.field.half {
+  flex: 1;
+}
+
+.label {
+  display: block;
+  font-size: 13px;
+  color: var(--steel-gray);
+  margin-bottom: 4px;
+}
+
+.input {
+  width: 100%;
+  height: 40px;
+  border: 1px solid var(--pale-ink);
+  border-radius: 6px;
+  padding: 0 12px;
+  font-size: 15px;
+  color: var(--ink-black);
+  background: #fff;
+  box-sizing: border-box;
+}
+
+.input.amount {
+  font-weight: 600;
+}
+
+.input.amount-large {
+  font-size: 22px;
+  font-weight: bold;
+}
+
+.picker {
+  height: 40px;
+  line-height: 40px;
+  border: 1px solid var(--pale-ink);
+  border-radius: 6px;
+  padding: 0 12px;
+  font-size: 15px;
+  color: var(--ink-black);
+  background: #fff;
+}
+
+.textarea {
+  width: 100%;
+  min-height: 72px;
+  border: 1px solid var(--pale-ink);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 15px;
+  color: var(--ink-black);
+  background: #fff;
+  box-sizing: border-box;
+}
+
+.btn-save {
+  margin-top: 20px;
+  width: 100%;
+  height: 48px;
+  line-height: 48px;
+  background-color: var(--ink-blue);
+  color: #fff;
+  border-radius: 10px;
+  font-size: 17px;
+  font-weight: 500;
+  border: none;
+}
+
+.btn-save::after {
+  border: none;
+}
+
+.btn-save[disabled] {
+  opacity: 0.6;
+}

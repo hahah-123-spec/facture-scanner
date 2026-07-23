@@ -1,0 +1,69 @@
+<!-- miniapp/miniprogram/pages/scan/add.wxml -->
+<view class="scan-page">
+  <!-- 拍照区域 -->
+  <view class="photo-area" wx:if="{{!photoPath}}" bindtap="onTakePhoto">
+    <text class="photo-icon">📷</text>
+    <text class="photo-text">拍照或从相册选择</text>
+    <text class="photo-hint">支持西班牙发票自动识别</text>
+  </view>
+
+  <!-- 照片预览 + 重新拍摄 -->
+  <view class="photo-preview" wx:if="{{photoPath}}">
+    <image src="{{photoPath}}" mode="aspectFit" class="preview-image" />
+    <view class="photo-retake" bindtap="onTakePhoto">
+      <text>重拍</text>
+    </view>
+  </view>
+
+  <!-- OCR 加载 -->
+  <view class="ocr-loading" wx:if="{{ocrLoading}}">
+    <text class="ocr-spinner">⏳</text>
+    <text class="ocr-text">识别中...</text>
+  </view>
+
+  <!-- 表单 -->
+  <view class="scan-form" wx:if="{{!ocrLoading && photoPath}}">
+    <view class="field">
+      <text class="label">供应商 *</text>
+      <input class="input" value="{{form.supplier_name}}" data-field="supplier_name" bindinput="onFieldChange" placeholder="供应商名称" />
+    </view>
+    <view class="field-row">
+      <view class="field half">
+        <text class="label">日期 *</text>
+        <input class="input" value="{{form.invoice_date}}" data-field="invoice_date" bindinput="onFieldChange" placeholder="DD/MM/YYYY" />
+      </view>
+      <view class="field half">
+        <text class="label">发票号</text>
+        <input class="input" value="{{form.invoice_number}}" data-field="invoice_number" bindinput="onFieldChange" placeholder="Nº Factura" />
+      </view>
+    </view>
+    <view class="field-row">
+      <view class="field half">
+        <text class="label">Base (€)</text>
+        <input class="input amount" type="digit" value="{{form.base_amount}}" data-field="base_amount" bindinput="onFieldChange" placeholder="0.00" />
+      </view>
+      <view class="field half">
+        <text class="label">IVA %</text>
+        <input class="input" type="digit" value="{{form.iva_rate}}" data-field="iva_rate" bindinput="onFieldChange" placeholder="21" />
+      </view>
+    </view>
+    <view class="field">
+      <text class="label">Total (€) *</text>
+      <input class="input amount-large" type="digit" value="{{form.total_amount}}" data-field="total_amount" bindinput="onFieldChange" placeholder="0.00" />
+    </view>
+    <view class="field">
+      <text class="label">分类</text>
+      <picker range="{{categories}}" range-key="label" bindchange="onCategoryChange">
+        <view class="picker">{{categories[categoryIndex].label || '选择'}}</view>
+      </picker>
+    </view>
+    <view class="field">
+      <text class="label">备注</text>
+      <textarea class="textarea" value="{{form.notes}}" data-field="notes" bindinput="onFieldChange" placeholder="可选备注" />
+    </view>
+
+    <button class="btn-save" bindtap="onSave" loading="{{saving}}" disabled="{{saving}}">
+      💾 保存发票
+    </button>
+  </view>
+</view>

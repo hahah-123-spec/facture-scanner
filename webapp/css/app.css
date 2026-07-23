@@ -725,6 +725,15 @@ input, select, textarea, button {
    Page: Report
    ========================================== */
 
+/* Period toggle (Mes / Año) */
+.period-toggle {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+  justify-content: center;
+}
+.period-toggle .btn-sm { min-width: 80px; }
+
 .summary-cards {
   display: grid;
   grid-template-columns: 1fr 1fr;

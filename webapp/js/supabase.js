@@ -5,13 +5,18 @@ var supabaseClient = supabase.createClient(CONFIG.supabaseUrl, CONFIG.anonKey);
 var invoices = {
   list: async function (params) {
     params = params || {};
+    var limitCount = params.year ? 500 : 100;
     var query = supabaseClient
       .from('invoices')
       .select('*')
       .order('invoice_date', { ascending: false })
-      .limit(100);
+      .limit(limitCount);
 
-    if (params.month) {
+    if (params.year) {
+      query = query
+        .gte('invoice_date', params.year + '-01-01')
+        .lt('invoice_date', (parseInt(params.year, 10) + 1) + '-01-01');
+    } else if (params.month) {
       var parts = params.month.split('-');
       var y = parseInt(parts[0], 10);
       var m = parseInt(parts[1], 10);

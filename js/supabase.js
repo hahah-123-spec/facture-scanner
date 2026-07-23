@@ -1,0 +1,119 @@
+/* Supabase client + Invoices CRUD + OCR + Storage */
+
+var supabaseClient = supabase.createClient(CONFIG.supabaseUrl, CONFIG.anonKey);
+
+var invoices = {
+  list: async function (params) {
+    params = params || {};
+    var limitCount = params.year ? 500 : 100;
+    var query = supabaseClient
+      .from('invoices')
+      .select('*')
+      .order('invoice_date', { ascending: false })
+      .limit(limitCount);
+
+    if (params.year) {
+      query = query
+        .gte('invoice_date', params.year + '-01-01')
+        .lt('invoice_date', (parseInt(params.year, 10) + 1) + '-01-01');
+    } else if (params.month) {
+      var parts = params.month.split('-');
+      var y = parseInt(parts[0], 10);
+      var m = parseInt(parts[1], 10);
+      var next = new Date(y, m, 1); // month after params.month
+      var startDate = params.month + '-01';
+      var endYear = next.getFullYear();
+      var endMonth = String(next.getMonth() + 1).padStart(2, '0');
+      query = query
+        .gte('invoice_date', startDate)
+        .lt('invoice_date', endYear + '-' + endMonth + '-01');
+    }
+
+    if (params.search) {
+      query = query.ilike('supplier_name', '%' + params.search + '%');
+    }
+
+    var result = await query;
+    if (result.error) throw result.error;
+    return result.data || [];
+  },
+
+  getById: async function (id) {
+    var result = await supabaseClient
+      .from('invoices')
+      .select('*')
+      .eq('id', id)
+      .single();
+    if (result.error) throw result.error;
+    return result.data;
+  },
+
+  create: async function (data) {
+    // Ensure user_id is always set for RLS
+    var userResult = await supabaseClient.auth.getUser();
+    if (userResult.data && userResult.data.user) {
+      data.user_id = userResult.data.user.id;
+    }
+    var result = await supabaseClient
+      .from('invoices')
+      .insert([data])
+      .select();
+    if (result.error) throw result.error;
+    return result.data;
+  },
+
+  update: async function (id, data) {
+    var result = await supabaseClient
+      .from('invoices')
+      .update(data)
+      .eq('id', id);
+    if (result.error) throw result.error;
+  },
+
+  delete: async function (id) {
+    var result = await supabaseClient
+      .from('invoices')
+      .delete()
+      .eq('id', id);
+    if (result.error) throw result.error;
+  },
+
+  checkDuplicate: async function (supplier_name, invoice_date, total_amount) {
+    var result = await supabaseClient
+      .from('invoices')
+      .select('*')
+      .eq('supplier_name', supplier_name)
+      .eq('invoice_date', invoice_date)
+      .eq('total_amount', total_amount)
+      .limit(1);
+    if (result.error) throw result.error;
+    return result.data && result.data.length > 0 ? result.data[0] : null;
+  },
+
+  monthlySummary: async function (month) {
+    var result = await supabaseClient
+      .rpc('monthly_summary', { p_month: month });
+    if (result.error) throw result.error;
+    return result.data;
+  }
+};
+
+/* --- Storage --- */
+
+async function uploadImage(file, filename) {
+  var result = await supabaseClient.storage
+    .from('invoices')
+    .upload(filename, file, {
+      cacheControl: '3600',
+      upsert: false
+    });
+  if (result.error) throw result.error;
+  return result.data;
+}
+
+function getPublicUrl(filename) {
+  var result = supabaseClient.storage
+    .from('invoices')
+    .getPublicUrl(filename);
+  return result.data.publicUrl;
+}

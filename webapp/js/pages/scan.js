@@ -167,38 +167,75 @@ var pageScan = {
     this._state.ocrLoading = true;
     var ocrEl = document.getElementById('ocrLoading');
     if (ocrEl) ocrEl.classList.add('show');
+    showLoading('Reconociendo con OCR...');
 
-    // Generate unique filename
-    var filename = 'incoming/' + Date.now() + '_' + Math.random().toString(36).substring(2, 8) + '.jpg';
+    Tesseract.recognize(file, 'spa', {
+      logger: function (m) {
+        if (m.status === 'recognizing text') {
+          var pct = Math.round(m.progress * 100);
+          document.getElementById('loadingText').textContent = 'Reconociendo... ' + pct + '%';
+        }
+      }
+    }).then(function (result) {
+      var text = result.data.text;
+      var lines = text.split('\n').map(function (l) { return l.trim(); }).filter(Boolean);
 
-    uploadImage(file, filename).then(function () {
-      self._state.imageFilename = filename;
-      return ocrInvoice(filename);
-    }).then(function (ocrRes) {
-      // Fill form with OCR results
+      // Extract fields using same regex as original
+      var supplier = lines.find(function (l) { return /^[A-Z][A-Za-zÀ-ÿ\s]{3,}$/.test(l); }) || '';
+      var dateMatch = text.match(/(\d{2}[\/\-\.]\d{2}[\/\-\.]\d{4})/);
+      var date = dateMatch ? dateMatch[1].replace(/\./g, '/') : '';
+
+      var amounts = text.match(/(\d+[.,]\d{2})\s*€?/g) || [];
+      var parsed = amounts.map(function (a) { return parseFloat(a.replace(',', '.').replace('€', '')); }).filter(function (n) { return !isNaN(n); });
+
+      var total = 0, base = 0;
+      var totalLine = lines.find(function (l) { return /TOTAL|IMPORTE\s*TOTAL/i.test(l); });
+      if (totalLine) {
+        var tm = totalLine.match(/(\d+[.,]\d{2})/);
+        if (tm) total = parseFloat(tm[1].replace(',', '.'));
+      }
+      if (!total && parsed.length > 0) total = Math.max.apply(null, parsed);
+
+      var baseIdx = lines.findIndex(function (l) { return /IVA|21%|10%|4%/i.test(l); });
+      if (baseIdx > 0) {
+        var bm = lines[baseIdx - 1].match(/(\d+[.,]\d{2})/);
+        if (bm) base = parseFloat(bm[1].replace(',', '.'));
+      }
+      if (!base && total) base = Math.round(total / 1.21 * 100) / 100;
+
+      var numMatch = text.match(/(?:FACTURA|N[º°]|FRA\.?)\s*[:#]?\s*([A-Z0-9\-]{4,20})/i);
+      var invoiceNum = numMatch ? numMatch[1] : '';
+
+      // Fill form
       var setVal = function (id, val) {
         var el = document.getElementById(id);
-        if (el && val) {
-          el.value = typeof val === 'number' ? String(val) : val;
-        }
+        if (el && val) el.value = val;
       };
-      setVal('field-supplier_name', ocrRes.supplier_name);
-      setVal('field-invoice_date', ocrRes.invoice_date);
-      setVal('field-base_amount', ocrRes.base_amount);
-      setVal('field-total_amount', ocrRes.total_amount);
-      setVal('field-invoice_number', ocrRes.invoice_number);
+      setVal('field-supplier_name', supplier);
+      if (date) setVal('field-invoice_date', date);
+      setVal('field-base_amount', base || '');
+      setVal('field-total_amount', total || '');
+      setVal('field-invoice_number', invoiceNum);
 
-      // Auto-compute IVA rate from base and total if not present
-      var base = parseFloat(ocrRes.base_amount) || 0;
-      var total = parseFloat(ocrRes.total_amount) || 0;
       if (base > 0 && total > base) {
         var impliedRate = ((total - base) / base * 100).toFixed(1);
         var ivaField = document.getElementById('field-iva_rate');
         if (ivaField) ivaField.value = impliedRate;
       }
 
+      hideLoading();
       showToast('OCR completado', 'success');
+
+      // Upload image to storage for persistence
+      var filename = 'incoming/' + Date.now() + '_' + Math.random().toString(36).substring(2, 8) + '.jpg';
+      uploadImage(file, filename).then(function () {
+        self._state.imageFilename = filename;
+      }).catch(function (err) {
+        console.error('Upload error (non-critical):', err);
+      });
+
     }).catch(function (err) {
+      hideLoading();
       console.error('OCR error:', err);
       showToast('OCR fallo, completa los campos manualmente', 'info');
     }).finally(function () {

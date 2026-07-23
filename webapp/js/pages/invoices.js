@@ -355,20 +355,35 @@ var pageInvoices = {
         });
       }
 
-      // Auto-compute total on base/iva change
+      // Auto-compute: Base + IVA ⇄ Total (bidirectional) — same as scan page
       var baseField = document.getElementById('detail-field-base_amount');
       var ivaField = document.getElementById('detail-field-iva_rate');
       var totalField = document.getElementById('detail-field-total_amount');
       if (baseField && ivaField && totalField) {
-        var computeTotal = function () {
-          var base = parseFloat(baseField.value) || 0;
-          var rate = parseFloat(ivaField.value) || 0;
-          if (base > 0 && rate > 0) {
-            totalField.value = (base + base * rate / 100).toFixed(2);
-          }
+        var detailComputing = false;
+        var detailComputeTotal = function () {
+          if (detailComputing) return;
+          detailComputing = true;
+          var b = parseFloat(baseField.value) || 0;
+          var r = parseFloat(ivaField.value) || 0;
+          if (b > 0 && r > 0) totalField.value = (b + b * r / 100).toFixed(2);
+          detailComputing = false;
         };
-        baseField.addEventListener('input', computeTotal);
-        ivaField.addEventListener('input', computeTotal);
+        var detailComputeBase = function () {
+          if (detailComputing) return;
+          detailComputing = true;
+          var t = parseFloat(totalField.value) || 0;
+          var r = parseFloat(ivaField.value) || 0;
+          if (t > 0 && r > 0) baseField.value = (t / (1 + r / 100)).toFixed(2);
+          detailComputing = false;
+        };
+        baseField.addEventListener('input', detailComputeTotal);
+        totalField.addEventListener('input', detailComputeBase);
+        ivaField.addEventListener('input', function () {
+          var t = parseFloat(totalField.value) || 0;
+          var b = parseFloat(baseField.value) || 0;
+          if (t > 0) detailComputeBase(); else if (b > 0) detailComputeTotal();
+        });
       }
     } else {
       // Edit button

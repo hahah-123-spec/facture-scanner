@@ -112,29 +112,3 @@ function getPublicUrl(filename) {
     .getPublicUrl(filename);
   return result.data.publicUrl;
 }
-
-/* --- OCR --- */
-
-async function ocrInvoice(imageFilename) {
-  var sessionResult = await supabaseClient.auth.getSession();
-  var token = (sessionResult.data && sessionResult.data.session)
-    ? sessionResult.data.session.access_token
-    : CONFIG.anonKey;
-
-  var res = await fetch(CONFIG.supabaseUrl + '/functions/v1/ocr-invoice', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'apikey': CONFIG.anonKey,
-      'Authorization': 'Bearer ' + token
-    },
-    body: JSON.stringify({ image_url: imageFilename })
-  });
-
-  if (!res.ok) {
-    var errText = '';
-    try { errText = await res.text(); } catch (_) {}
-    throw new Error('OCR failed: ' + (errText || res.status));
-  }
-  return res.json();
-}

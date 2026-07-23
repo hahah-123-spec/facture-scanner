@@ -525,10 +525,10 @@ input, select, textarea, button {
   cursor: pointer;
   transition: transform var(--transition);
   -webkit-tap-highlight-color: transparent;
+  position: relative; /* for delete button */
 }
 .invoice-card:active { transform: scale(0.98); }
 
-.invoice-card { position: relative; }
 .invoice-card .card-delete-btn {
   position: absolute;
   bottom: 10px;

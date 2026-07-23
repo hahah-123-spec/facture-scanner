@@ -4,7 +4,6 @@ var Router = {
   currentPage: null,
   currentRoute: '',
   currentParams: {},
-  _initialCheckDone: false,
 
   /* ---- Public API ---- */
 

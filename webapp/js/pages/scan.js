@@ -96,7 +96,7 @@ var pageScan = {
         '</div>' +
         '<div class="form-group">' +
           '<label class="form-label">IVA %</label>' +
-          '<input class="form-input" id="field-iva_rate" type="number" step="0.1" value="21">' +
+          '<input class="form-input" id="field-iva_rate" type="number" step="0.1" value="' + (parseInt(localStorage.getItem('default_iva'), 10) || 21) + '">' +
         '</div>' +
       '</div>' +
 

@@ -93,10 +93,17 @@ var pageLogin = {
     action.then(function (result) {
       hideLoading();
       if (self._mode === 'register') {
-        showToast('Cuenta creada! Revisa tu correo para verificar.', 'success');
-        self._mode = 'login';
-        self._renderForm();
-        self._bindEvents();
+        // Auto-confirm enabled — try to login directly
+        if (result && result.session) {
+          showToast('Cuenta creada!', 'success');
+          Router.navigate('invoices');
+        } else {
+          // If email confirmation required
+          showToast('Cuenta creada! Revisa tu correo para verificar.', 'success');
+          self._mode = 'login';
+          self._renderForm();
+          self._bindEvents();
+        }
         return;
       }
       // Login success — router will redirect automatically

@@ -30,7 +30,10 @@ Deno.serve(async (req) => {
   }
 
   // 3. 生成 JWT
-  const { data: signIn } = await supabase.auth.signInWithPassword({ email, password });
+  const { data: signIn, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+  if (!signIn?.session || signInError) {
+    return new Response(JSON.stringify({ error: 'login failed', detail: signInError?.message }), { status: 500 });
+  }
 
   return new Response(JSON.stringify({
     access_token: signIn.session.access_token,

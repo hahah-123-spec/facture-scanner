@@ -9,9 +9,12 @@ Deno.serve(async (req) => {
   );
 
   // 1. 从 Storage 下载图片
-  const { data: imageData } = await supabase.storage
+  const { data: imageData, error: downloadError } = await supabase.storage
     .from('invoices')
     .download(image_url);
+  if (!imageData || downloadError) {
+    return new Response(JSON.stringify({ error: 'image not found', detail: downloadError?.message }), { status: 404 });
+  }
   const base64 = btoa(String.fromCharCode(...new Uint8Array(await imageData.arrayBuffer())));
 
   // 2. 调用 Google Cloud Vision
@@ -34,7 +37,7 @@ Deno.serve(async (req) => {
   const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
 
   // 供应商：第一行大写文本
-  const supplier_name = lines.find(l => /^[A-Z][A-zÀ-ÿ\s]{3,}$/.test(l)) || '';
+  const supplier_name = lines.find(l => /^[A-Z][A-Za-zÀ-ÿ\s]{3,}$/.test(l)) || '';
 
   // 日期：匹配 dd/mm/yyyy
   const dateMatch = text.match(/(\d{2}[\/\-\.]\d{2}[\/\-\.]\d{4})/);

@@ -1,0 +1,11 @@
+.list-page { min-height: 100vh; padding-bottom: 80px; }
+.search-bar { padding: 12px 16px; }
+.search-input { background: #fff; border: 1px solid var(--pale-ink); border-radius: 8px; height: 40px; padding: 0 12px; font-size: 14px; }
+.month-switcher { display: flex; justify-content: center; align-items: center; padding: 8px 0 4px; }
+.month-btn { padding: 8px 16px; font-size: 16px; color: var(--ink-blue); }
+.month-label { font-size: 16px; font-weight: 500; min-width: 100px; text-align: center; }
+.list-scroll { height: calc(100vh - 180px); }
+.empty-state { display: flex; flex-direction: column; align-items: center; padding-top: 120px; }
+.empty-icon { font-size: 48px; margin-bottom: 12px; }
+.empty-text { font-size: 18px; color: var(--steel-gray); }
+.empty-hint { font-size: 14px; color: var(--steel-gray); margin-top: 4px; }

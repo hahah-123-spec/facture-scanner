@@ -1,0 +1,4 @@
+{
+  "usingComponents": { "invoice-card": "/components/invoice-card/index" },
+  "enablePullDownRefresh": true
+}

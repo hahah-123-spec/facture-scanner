@@ -1,0 +1,27 @@
+<view class="list-page">
+  <!-- 搜索栏 -->
+  <view class="search-bar">
+    <input class="search-input" placeholder="🔍 搜索供应商..." bindinput="onSearchInput" value="{{searchText}}" />
+  </view>
+
+  <!-- 月份切换 -->
+  <view class="month-switcher">
+    <text class="month-btn" bindtap="onPrevMonth">◀</text>
+    <text class="month-label">{{currentMonth}}</text>
+    <text class="month-btn" bindtap="onNextMonth">▶</text>
+  </view>
+
+  <!-- 列表 / 空状态 -->
+  <block wx:if="{{invoices.length > 0}}">
+    <scroll-view scroll-y="true" class="list-scroll">
+      <invoice-card wx:for="{{invoices}}" wx:key="id" invoice="{{item}}" bind:tap="onCardTap" />
+    </scroll-view>
+  </block>
+  <block wx:else>
+    <view class="empty-state">
+      <text class="empty-icon">🧾</text>
+      <text class="empty-text">还没有发票</text>
+      <text class="empty-hint">点下方 + 开始录入</text>
+    </view>
+  </block>
+</view>

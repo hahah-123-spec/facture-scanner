@@ -164,7 +164,7 @@ var pageReport = {
     showLoading('Generando CSV...');
 
     invoices.list({ month: this._currentMonth }).then(function (all) {
-      // Build CSV with BOM for Spanish characters
+      // Build CSV header with BOM
       var csv = '﻿Fecha,Proveedor,Nº Factura,Base,IVA%,IVA,Total,Categoría\n';
 
       for (var i = 0; i < all.length; i++) {
@@ -186,8 +186,11 @@ var pageReport = {
           self._escCsv(getLabel(inv.category)) + '\n';
       }
 
-      // Download
-      var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      // Download with proper UTF-8 BOM bytes for Excel
+      var bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
+      var encoder = new TextEncoder();
+      var csvBytes = encoder.encode(csv);
+      var blob = new Blob([bom, csvBytes], { type: 'text/csv;charset=utf-8;' });
       var link = document.createElement('a');
       link.href = URL.createObjectURL(blob);
       link.download = 'facturas_' + self._currentMonth + '.csv';

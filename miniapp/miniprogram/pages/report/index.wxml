@@ -1,0 +1,30 @@
+<!-- miniapp/miniprogram/pages/report/index.wxml -->
+<view class="report-page">
+  <view class="month-header">{{currentMonth}}</view>
+
+  <!-- 汇总卡片 -->
+  <view class="summary-card card" wx:if="{{summary}}">
+    <view class="summary-main">
+      <text class="big-amount">€{{summary.total}}</text>
+      <text class="big-label">本月总金额</text>
+    </view>
+    <view class="summary-details">
+      <view class="detail-item"><text class="detail-val">€{{summary.base}}</text><text class="detail-lbl">Base</text></view>
+      <view class="detail-item"><text class="detail-val">€{{summary.iva}}</text><text class="detail-lbl">IVA</text></view>
+      <view class="detail-item"><text class="detail-val">{{summary.count}}</text><text class="detail-lbl">发票</text></view>
+    </view>
+  </view>
+
+  <!-- 分类占比 -->
+  <view class="category-bars" wx:if="{{categoryData.length > 0}}">
+    <view class="cat-row" wx:for="{{categoryData}}" wx:key="label">
+      <text class="cat-label">{{item.label}}</text>
+      <view class="cat-bar-track">
+        <view class="cat-bar-fill" style="width: {{item.pct}}%"></view>
+      </view>
+      <text class="cat-pct">{{item.pct}}%</text>
+    </view>
+  </view>
+
+  <button class="btn-export" bindtap="onExport">📤 导出 Excel</button>
+</view>

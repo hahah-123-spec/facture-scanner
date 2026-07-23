@@ -1,0 +1,15 @@
+<!-- miniapp/miniprogram/pages/profile/index.wxml -->
+<view class="profile-page">
+  <view class="section">
+    <text class="section-title">设置</text>
+    <view class="setting-row">
+      <text class="setting-label">默认 IVA 税率 (%)</text>
+      <input class="setting-input" type="number" value="{{defaultIva}}" bindinput="onIvaChange" />
+    </view>
+  </view>
+  <view class="section">
+    <text class="section-title">关于</text>
+    <view class="info-row"><text class="info-label">版本</text><text class="info-value">1.0.0</text></view>
+  </view>
+  <button class="btn-logout" bindtap="onLogout">退出登录</button>
+</view>

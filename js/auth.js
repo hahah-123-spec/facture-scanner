@@ -46,6 +46,17 @@ var auth = {
     return result.data ? result.data.user : null;
   },
 
+  getMembers: async function () {
+    var result = await supabaseClient.rpc('get_workspace_members');
+    if (result.error) throw result.error;
+    return result.data || [];
+  },
+
+  removeMember: async function (userId) {
+    var result = await supabaseClient.rpc('remove_member', { p_user_id: userId });
+    if (result.error) throw result.error;
+  },
+
   leaveWorkspace: async function () {
     var result = await supabaseClient.rpc('leave_workspace');
     if (result.error) throw result.error;

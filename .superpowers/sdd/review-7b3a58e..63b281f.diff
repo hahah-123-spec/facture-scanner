@@ -1,0 +1,90 @@
+﻿# Review package: 7b3a58e..63b281f
+
+## Commits
+63b281f feat: add WeChat login page
+
+## Files changed
+ miniapp/miniprogram/pages/login/login.js   | 18 ++++++++++++++++++
+ miniapp/miniprogram/pages/login/login.json |  3 +++
+ miniapp/miniprogram/pages/login/login.wxml | 11 +++++++++++
+ miniapp/miniprogram/pages/login/login.wxss | 21 +++++++++++++++++++++
+ 4 files changed, 53 insertions(+)
+
+## Diff
+diff --git a/miniapp/miniprogram/pages/login/login.js b/miniapp/miniprogram/pages/login/login.js
+new file mode 100644
+index 0000000..b718462
+--- /dev/null
++++ b/miniapp/miniprogram/pages/login/login.js
+@@ -0,0 +1,18 @@
++// miniapp/miniprogram/pages/login/login.js
++const auth = require('../../utils/auth');
++
++Page({
++  data: { loading: false },
++  async handleLogin() {
++    this.setData({ loading: true });
++    try {
++      await auth.login();
++      wx.switchTab({ url: '/pages/invoices/list' });
++    } catch (e) {
++      wx.showToast({ title: '登录失败，请重试', icon: 'none' });
++      console.error(e);
++    } finally {
++      this.setData({ loading: false });
++    }
++  }
++});
+diff --git a/miniapp/miniprogram/pages/login/login.json b/miniapp/miniprogram/pages/login/login.json
+new file mode 100644
+index 0000000..c5a131f
+--- /dev/null
++++ b/miniapp/miniprogram/pages/login/login.json
+@@ -0,0 +1,3 @@
++{
++  "navigationBarTitleText": "登录"
++}
+diff --git a/miniapp/miniprogram/pages/login/login.wxml b/miniapp/miniprogram/pages/login/login.wxml
+new file mode 100644
+index 0000000..afaf665
+--- /dev/null
++++ b/miniapp/miniprogram/pages/login/login.wxml
+@@ -0,0 +1,11 @@
++<!-- miniapp/miniprogram/pages/login/login.wxml -->
++<view class="login-page">
++  <view class="hero">
++    <text class="hero-icon">🧾</text>
++    <text class="hero-title">发票管理</text>
++    <text class="hero-sub">拍照 · 识别 · 报表</text>
++  </view>
++  <button class="login-btn" bindtap="handleLogin" loading="{{loading}}" disabled="{{loading}}">
++    微信一键登录
++  </button>
++</view>
+diff --git a/miniapp/miniprogram/pages/login/login.wxss b/miniapp/miniprogram/pages/login/login.wxss
+new file mode 100644
+index 0000000..237e5c5
+--- /dev/null
++++ b/miniapp/miniprogram/pages/login/login.wxss
+@@ -0,0 +1,21 @@
++/* miniapp/miniprogram/pages/login/login.wxss */
++.login-page {
++  display: flex;
++  flex-direction: column;
++  align-items: center;
++  justify-content: center;
++  min-height: 100vh;
++  padding: 48px 32px;
++  background-color: var(--paper-white);
++}
++.hero { text-align: center; margin-bottom: 64px; }
++.hero-icon { font-size: 64px; display: block; margin-bottom: 16px; }
++.hero-title { font-size: 28px; font-weight: bold; color: var(--ink-blue); display: block; }
++.hero-sub { font-size: 16px; color: var(--steel-gray); margin-top: 8px; display: block; }
++.login-btn {
++  width: 100%; max-width: 320px; height: 52px; line-height: 52px;
++  background-color: var(--ink-blue); color: #fff; border-radius: 12px;
++  font-size: 18px; border: none;
++}
++.login-btn::after { border: none; }
++.login-btn:active { opacity: 0.85; }

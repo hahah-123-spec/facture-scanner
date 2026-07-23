@@ -1,1 +1,5 @@
 ﻿Task 1: complete (commits 2f716d2..71ad3cb, review clean)
+Task 2: complete (commits a6c24bd..0c019c3, review clean)
+Task 3: complete (commits 0c019c3..7b3a58e, review clean)
+Task 4: complete (commit 63b281f, report written)
+Task 4: complete (commits 7b3a58e..63b281f, review clean)

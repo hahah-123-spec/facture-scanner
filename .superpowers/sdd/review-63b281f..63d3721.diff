@@ -1,0 +1,78 @@
+﻿# Review package: 63b281f..63d3721
+
+## Commits
+63d3721 feat: add invoice card component
+
+## Files changed
+ miniapp/miniprogram/components/invoice-card/index.js   | 17 +++++++++++++++++
+ miniapp/miniprogram/components/invoice-card/index.json |  4 ++++
+ miniapp/miniprogram/components/invoice-card/index.wxml | 12 ++++++++++++
+ miniapp/miniprogram/components/invoice-card/index.wxss |  8 ++++++++
+ 4 files changed, 41 insertions(+)
+
+## Diff
+diff --git a/miniapp/miniprogram/components/invoice-card/index.js b/miniapp/miniprogram/components/invoice-card/index.js
+new file mode 100644
+index 0000000..61d8ae7
+--- /dev/null
++++ b/miniapp/miniprogram/components/invoice-card/index.js
+@@ -0,0 +1,17 @@
++const { getLabel } = require('../../utils/categories');
++
++Component({
++  properties: {
++    invoice: { type: Object, value: {} }
++  },
++  observers: {
++    'invoice.category': function(category) {
++      this.setData({ categoryLabel: getLabel(category) });
++    }
++  },
++  methods: {
++    onTap() {
++      this.triggerEvent('tap', { id: this.data.invoice.id });
++    }
++  }
++});
+diff --git a/miniapp/miniprogram/components/invoice-card/index.json b/miniapp/miniprogram/components/invoice-card/index.json
+new file mode 100644
+index 0000000..a89ef4d
+--- /dev/null
++++ b/miniapp/miniprogram/components/invoice-card/index.json
+@@ -0,0 +1,4 @@
++{
++  "component": true,
++  "usingComponents": {}
++}
+diff --git a/miniapp/miniprogram/components/invoice-card/index.wxml b/miniapp/miniprogram/components/invoice-card/index.wxml
+new file mode 100644
+index 0000000..69f24bb
+--- /dev/null
++++ b/miniapp/miniprogram/components/invoice-card/index.wxml
+@@ -0,0 +1,12 @@
++<view class="card" bindtap="onTap">
++  <view class="card-row-top">
++    <text class="supplier">{{invoice.supplier_name}}</text>
++    <text class="amount">€{{invoice.total_amount}}</text>
++  </view>
++  <view class="card-row-bottom">
++    <text class="date">{{invoice.invoice_date}}</text>
++    <text class="sep">·</text>
++    <text class="category">{{invoice.category}}</text>
++    <text class="iva" wx:if="{{invoice.iva_rate}}">IVA {{invoice.iva_rate}}%</text>
++  </view>
++</view>
+diff --git a/miniapp/miniprogram/components/invoice-card/index.wxss b/miniapp/miniprogram/components/invoice-card/index.wxss
+new file mode 100644
+index 0000000..d4fe92d
+--- /dev/null
++++ b/miniapp/miniprogram/components/invoice-card/index.wxss
+@@ -0,0 +1,8 @@
++.card-row-top { display: flex; justify-content: space-between; align-items: baseline; }
++.supplier { font-size: 16px; font-weight: 500; color: var(--ink-black); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
++.amount { font-size: 22px; font-weight: bold; color: var(--ink-black); flex-shrink: 0; margin-left: 12px; }
++.card-row-bottom { display: flex; align-items: center; margin-top: 8px; }
++.date { font-size: 14px; color: var(--steel-gray); }
++.sep { margin: 0 6px; color: var(--pale-ink); }
++.category { font-size: 14px; color: var(--ink-blue); }
++.iva { font-size: 12px; color: var(--steel-gray); margin-left: 6px; }

@@ -1,0 +1,11 @@
+<!-- miniapp/miniprogram/pages/login/login.wxml -->
+<view class="login-page">
+  <view class="hero">
+    <text class="hero-icon">🧾</text>
+    <text class="hero-title">发票管理</text>
+    <text class="hero-sub">拍照 · 识别 · 报表</text>
+  </view>
+  <button class="login-btn" bindtap="handleLogin" loading="{{loading}}" disabled="{{loading}}">
+    微信一键登录
+  </button>
+</view>

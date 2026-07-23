@@ -1,0 +1,21 @@
+/* miniapp/miniprogram/pages/login/login.wxss */
+.login-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 48px 32px;
+  background-color: var(--paper-white);
+}
+.hero { text-align: center; margin-bottom: 64px; }
+.hero-icon { font-size: 64px; display: block; margin-bottom: 16px; }
+.hero-title { font-size: 28px; font-weight: bold; color: var(--ink-blue); display: block; }
+.hero-sub { font-size: 16px; color: var(--steel-gray); margin-top: 8px; display: block; }
+.login-btn {
+  width: 100%; max-width: 320px; height: 52px; line-height: 52px;
+  background-color: var(--ink-blue); color: #fff; border-radius: 12px;
+  font-size: 18px; border: none;
+}
+.login-btn::after { border: none; }
+.login-btn:active { opacity: 0.85; }

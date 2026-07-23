@@ -2,8 +2,8 @@ const { getToken } = require('./utils/auth');
 
 App({
   globalData: {
-    supabaseUrl: 'YOUR_SUPABASE_URL',
-    supabaseAnonKey: 'YOUR_SUPABASE_ANON_KEY',
+    supabaseUrl: 'https://YOUR_PROJECT.supabase.co',
+    anonKey: 'YOUR_ANON_KEY',
     userInfo: null
   },
 

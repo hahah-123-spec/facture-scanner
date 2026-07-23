@@ -83,6 +83,10 @@ var Router = {
         window.location.hash = 'invoices';
         return;
       }
+      // Load workspace if not loaded yet
+      if (user && !WS.id) {
+        return auth._loadWorkspace().then(function () { self._render(routePart, params); });
+      }
       self._render(routePart, params);
     }).catch(function () {
       // On error (e.g. network), try to render login

@@ -1,0 +1,42 @@
+{
+  "pages": [
+    "pages/invoices/invoices",
+    "pages/scan/scan",
+    "pages/report/report",
+    "pages/profile/profile",
+    "pages/login/login",
+    "pages/invoice-detail/invoice-detail"
+  ],
+  "window": {
+    "navigationBarBackgroundColor": "#FCFAF7",
+    "navigationBarTextStyle": "black",
+    "navigationBarTitleText": "发票扫描管理",
+    "backgroundColor": "#FCFAF7",
+    "backgroundTextStyle": "dark"
+  },
+  "tabBar": {
+    "color": "#6B7280",
+    "selectedColor": "#1A3A6B",
+    "backgroundColor": "#FCFAF7",
+    "borderStyle": "white",
+    "list": [
+      {
+        "pagePath": "pages/invoices/invoices",
+        "text": "发票"
+      },
+      {
+        "pagePath": "pages/scan/scan",
+        "text": "录入"
+      },
+      {
+        "pagePath": "pages/report/report",
+        "text": "报表"
+      },
+      {
+        "pagePath": "pages/profile/profile",
+        "text": "我的"
+      }
+    ]
+  },
+  "sitemapLocation": "sitemap.json"
+}

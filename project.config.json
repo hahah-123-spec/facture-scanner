@@ -1,0 +1,10 @@
+{
+  "miniprogramRoot": "miniprogram/",
+  "appid": "YOUR_APPID",
+  "projectname": "invoice-scanner",
+  "setting": {
+    "es6": true,
+    "minified": true,
+    "urlCheck": true
+  }
+}

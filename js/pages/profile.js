@@ -14,6 +14,27 @@ var pageProfile = {
 
     this._el.innerHTML =
       '<div class="profile-section">' +
+        '<div class="section-title">Tienda</div>' +
+        '<div class="card">' +
+          '<div class="profile-row">' +
+            '<span class="row-label">Codigo de tienda</span>' +
+            '<span class="row-value highlight" id="profileInviteCode">' + (WS.code || '—') + '</span>' +
+          '</div>' +
+          '<div class="profile-row">' +
+            '<span class="row-label" style="font-size:12px;color:var(--steel-gray)">Comparte este codigo con tus compañeros para que vean las mismas facturas</span>' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="profile-section">' +
+        '<div class="section-title">Unirse a tienda</div>' +
+        '<div class="card">' +
+          '<div style="display:flex;gap:8px">' +
+            '<input class="form-input" type="text" id="profileJoinCode" placeholder="Codigo de tienda" maxlength="6" style="flex:1;text-transform:uppercase">' +
+            '<button class="btn btn-primary btn-sm" id="profileJoinBtn">Unirse</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="profile-section">' +
         '<div class="section-title">Configuracion</div>' +
         '<div class="card">' +
           '<div class="profile-row">' +
@@ -38,6 +59,26 @@ var pageProfile = {
 
   _bindEvents: function () {
     var self = this;
+
+    // Join workspace button
+    var joinBtn = document.getElementById('profileJoinBtn');
+    if (joinBtn) {
+      joinBtn.addEventListener('click', function () {
+        var codeEl = document.getElementById('profileJoinCode');
+        var code = codeEl ? codeEl.value.trim().toUpperCase() : '';
+        if (!code) { showToast('Introduce el codigo de tienda', 'error'); return; }
+        showLoading('Uniendo...');
+        auth.joinWorkspace(code).then(function () {
+          hideLoading();
+          var codeDisp = document.getElementById('profileInviteCode');
+          if (codeDisp) codeDisp.textContent = WS.code || '—';
+          showToast('Unido a la tienda!', 'success');
+        }).catch(function (err) {
+          hideLoading();
+          showToast('Codigo no valido o tienda no encontrada', 'error');
+        });
+      });
+    }
 
     // Default IVA save on change
     var ivaInput = document.getElementById('profileDefaultIva');

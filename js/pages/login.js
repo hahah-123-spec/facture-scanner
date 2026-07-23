@@ -25,6 +25,11 @@ var pageLogin = {
         '<div class="form-group">' +
           '<input class="form-input" type="password" id="loginPassword" placeholder="Contrasena" autocomplete="' + (isLogin ? 'current-password' : 'new-password') + '" required>' +
         '</div>' +
+        (!isLogin ?
+        '<div class="form-group">' +
+          '<input class="form-input" type="text" id="loginInviteCode" placeholder="Codigo de tienda (opcional)" autocomplete="off" maxlength="6" style="text-transform:uppercase">' +
+          '<span style="font-size:12px;color:var(--steel-gray);display:block;margin-top:4px">Pide el codigo a tu compañero. Si no tienes, se creara una tienda nueva</span>' +
+        '</div>' : '') +
         '<button class="btn btn-primary btn-block" id="loginSubmitBtn">' +
           (isLogin ? 'Iniciar sesion' : 'Crear cuenta') +
         '</button>' +
@@ -88,7 +93,13 @@ var pageLogin = {
 
     showLoading(self._mode === 'login' ? 'Iniciando sesion...' : 'Creando cuenta...');
 
-    var action = this._mode === 'login' ? auth.login(email, password) : auth.signUp(email, password);
+    var inviteCode = '';
+    var inviteEl = document.getElementById('loginInviteCode');
+    if (inviteEl) inviteCode = inviteEl.value.trim();
+
+    var action = this._mode === 'login'
+      ? auth.login(email, password)
+      : auth.signUp(email, password, inviteCode);
 
     action.then(function (result) {
       hideLoading();

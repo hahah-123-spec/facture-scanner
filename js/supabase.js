@@ -49,10 +49,13 @@ var invoices = {
   },
 
   create: async function (data) {
-    // Ensure user_id is always set for RLS
+    // Ensure user_id + workspace_id are always set for RLS
     var userResult = await supabaseClient.auth.getUser();
     if (userResult.data && userResult.data.user) {
       data.user_id = userResult.data.user.id;
+    }
+    if (WS.id) {
+      data.workspace_id = WS.id;
     }
     var result = await supabaseClient
       .from('invoices')

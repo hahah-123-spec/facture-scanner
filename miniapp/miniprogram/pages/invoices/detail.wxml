@@ -32,8 +32,8 @@
     </view>
     <view class="field-group">
       <text class="field-label">分类</text>
-      <picker range="{{categories}}" range-key="label" value="{{0}}" bindchange="onCategoryChange" disabled="{{!editing}}">
-        <view class="picker-value">{{invoice.category}}</view>
+      <picker range="{{categories}}" range-key="label" value="{{categoryIndex}}" bindchange="onCategoryChange" disabled="{{!editing}}">
+        <view class="picker-value">{{categoryLabel}}</view>
       </picker>
     </view>
     <view class="field-group">

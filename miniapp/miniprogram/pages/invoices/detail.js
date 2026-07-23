@@ -1,7 +1,7 @@
 // miniapp/miniprogram/pages/invoices/detail.js
 const { invoices } = require('../../utils/supabase');
 const { getPublicUrl } = require('../../utils/storage');
-const { CATEGORIES } = require('../../utils/categories');
+const { CATEGORIES, getLabel } = require('../../utils/categories');
 
 Page({
   data: { invoice: null, categories: CATEGORIES, editing: false, imageUrl: '' },
@@ -13,8 +13,11 @@ Page({
   async loadInvoice(id) {
     try {
       const invoice = await invoices.getById(id);
+      const catIndex = CATEGORIES.findIndex(c => c.value === invoice.category);
       this.setData({
         invoice,
+        categoryIndex: catIndex >= 0 ? catIndex : 0,
+        categoryLabel: catIndex >= 0 ? CATEGORIES[catIndex].label : invoice.category,
         imageUrl: invoice.image_url ? getPublicUrl(invoice.image_url) : ''
       });
     } catch (e) {
@@ -64,8 +67,12 @@ Page({
       confirmColor: '#C2413E',
       success: async (res) => {
         if (res.confirm) {
-          await invoices.delete(this.data.invoice.id);
-          wx.navigateBack();
+          try {
+            await invoices.delete(this.data.invoice.id);
+            wx.navigateBack();
+          } catch (e) {
+            wx.showToast({ title: '删除失败', icon: 'none' });
+          }
         }
       }
     });

@@ -1,0 +1,213 @@
+﻿## ### 任务 8：拍照录入页（Tab 2）— 核心功能
+
+**文件：**
+- 创建：`miniapp/miniprogram/pages/scan/add.js`
+- 创建：`miniapp/miniprogram/pages/scan/add.wxml`
+- 创建：`miniapp/miniprogram/pages/scan/add.wxss`
+- 创建：`miniapp/miniprogram/pages/scan/add.json`
+
+- [ ] **步骤 1：录入页逻辑（含 OCR + 重复检测）**
+
+```javascript
+// miniapp/miniprogram/pages/scan/add.js
+const { invoices } = require('../../utils/supabase');
+const { uploadImage, getPublicUrl } = require('../../utils/storage');
+const app = getApp();
+
+Page({
+  data: {
+    photoPath: '',
+    ocrLoading: false,
+    saving: false,
+    form: {
+      supplier_name: '', invoice_date: '', base_amount: '',
+      iva_rate: '21', total_amount: '', invoice_number: '',
+      category: 'productos', notes: ''
+    }
+  },
+  onTakePhoto() {
+    wx.chooseImage({
+      count: 1, sizeType: ['compressed'], sourceType: ['camera', 'album'],
+      success: async (res) => {
+        const path = res.tempFilePaths[0];
+        this.setData({ photoPath: path, ocrLoading: true });
+
+        // 上传图片
+        const filename = `incoming/${Date.now()}.jpg`;
+        await uploadImage(path, filename);
+        const imageUrl = getPublicUrl(filename);
+        this.setData({ _imageFilename: filename });
+
+        // 调用 OCR
+        try {
+          const ocrRes = await new Promise((resolve, reject) => {
+            wx.request({
+              url: `${app.globalData.supabaseUrl}/functions/v1/ocr-invoice`,
+              method: 'POST',
+              header: {
+                'Content-Type': 'application/json',
+                'apikey': app.globalData.anonKey,
+                'Authorization': `Bearer ${wx.getStorageSync('supabase_token')}`
+              },
+              data: { image_url: filename },
+              success(r) { resolve(r.data); },
+              fail: reject
+            });
+          });
+          this.setData({
+            form: {
+              supplier_name: ocrRes.supplier_name || '',
+              invoice_date: ocrRes.invoice_date || '',
+              base_amount: String(ocrRes.base_amount || ''),
+              iva_rate: '21',
+              total_amount: String(ocrRes.total_amount || ''),
+              invoice_number: ocrRes.invoice_number || '',
+              category: 'productos',
+              notes: ''
+            }
+          });
+        } catch (e) { console.error('OCR failed:', e); }
+        finally { this.setData({ ocrLoading: false }); }
+      }
+    });
+  },
+  onFieldChange(e) {
+    const { field } = e.currentTarget.dataset;
+    const form = { ...this.data.form };
+    form[field] = e.detail.value;
+    this.setData({ form });
+  },
+  onCategoryChange(e) {
+    const cats = ['productos','plantas','suministros','servicios','transporte','otros'];
+    const form = { ...this.data.form, category: cats[e.detail.value] };
+    this.setData({ form });
+  },
+  async onSave() {
+    const { form, _imageFilename } = this.data;
+    if (!form.supplier_name || !form.invoice_date || !form.total_amount) {
+      wx.showToast({ title: '请填写供应商、日期和金额', icon: 'none' }); return;
+    }
+    this.setData({ saving: true });
+    try {
+      // 重复检测
+      const dup = await invoices.checkDuplicate(form.supplier_name, form.invoice_date, parseFloat(form.total_amount));
+      if (dup) {
+        const confirmed = await new Promise(resolve => {
+          wx.showModal({
+            title: '⚠️ 可能已录入',
+            content: `${dup.supplier_name}\n${dup.invoice_date}\n€${dup.total_amount}\n\n已有相同发票，确认保存？`,
+            confirmText: '仍然保存', cancelText: '取消',
+            success: r => resolve(r.confirm)
+          });
+        });
+        if (!confirmed) { this.setData({ saving: false }); return; }
+      }
+
+      await invoices.create({
+        supplier_name: form.supplier_name,
+        invoice_date: form.invoice_date,
+        base_amount: parseFloat(form.base_amount) || 0,
+        iva_rate: parseFloat(form.iva_rate) || 21,
+        total_amount: parseFloat(form.total_amount) || 0,
+        invoice_number: form.invoice_number,
+        category: form.category,
+        image_url: _imageFilename || '',
+        notes: form.notes
+      });
+
+      wx.showToast({ title: '✅ 保存成功', icon: 'none' });
+      this.setData({
+        photoPath: '', _imageFilename: null,
+        form: { supplier_name:'', invoice_date:'', base_amount:'', iva_rate:'21', total_amount:'', invoice_number:'', category:'productos', notes:'' }
+      });
+    } catch (e) {
+      console.error(e);
+      wx.showToast({ title: '保存失败', icon: 'none' });
+    } finally { this.setData({ saving: false }); }
+  }
+});
+```
+
+- [ ] **步骤 2：录入页模板**
+
+```xml
+<!-- miniapp/miniprogram/pages/scan/add.wxml -->
+<view class="scan-page">
+  <!-- 拍照区域 -->
+  <view class="photo-area" wx:if="{{!photoPath}}" bindtap="onTakePhoto">
+    <text class="photo-icon">📷</text>
+    <text class="photo-text">拍照或从相册选择</text>
+    <text class="photo-hint">支持西班牙发票自动识别</text>
+  </view>
+
+  <!-- 照片预览 + 重新拍摄 -->
+  <view class="photo-preview" wx:if="{{photoPath}}">
+    <image src="{{photoPath}}" mode="aspectFit" class="preview-image" />
+    <view class="photo-retake" bindtap="onTakePhoto">
+      <text>重拍</text>
+    </view>
+  </view>
+
+  <!-- OCR 加载 -->
+  <view class="ocr-loading" wx:if="{{ocrLoading}}">
+    <text class="ocr-spinner">⏳</text>
+    <text class="ocr-text">识别中...</text>
+  </view>
+
+  <!-- 表单 -->
+  <view class="scan-form" wx:if="{{!ocrLoading && photoPath}}">
+    <view class="field">
+      <text class="label">供应商 *</text>
+      <input class="input" value="{{form.supplier_name}}" data-field="supplier_name" bindinput="onFieldChange" placeholder="供应商名称" />
+    </view>
+    <view class="field-row">
+      <view class="field half">
+        <text class="label">日期 *</text>
+        <input class="input" value="{{form.invoice_date}}" data-field="invoice_date" bindinput="onFieldChange" placeholder="DD/MM/YYYY" />
+      </view>
+      <view class="field half">
+        <text class="label">发票号</text>
+        <input class="input" value="{{form.invoice_number}}" data-field="invoice_number" bindinput="onFieldChange" placeholder="Nº Factura" />
+      </view>
+    </view>
+    <view class="field-row">
+      <view class="field half">
+        <text class="label">Base (€)</text>
+        <input class="input amount" type="digit" value="{{form.base_amount}}" data-field="base_amount" bindinput="onFieldChange" placeholder="0.00" />
+      </view>
+      <view class="field half">
+        <text class="label">IVA %</text>
+        <input class="input" type="digit" value="{{form.iva_rate}}" data-field="iva_rate" bindinput="onFieldChange" placeholder="21" />
+      </view>
+    </view>
+    <view class="field">
+      <text class="label">Total (€) *</text>
+      <input class="input amount-large" type="digit" value="{{form.total_amount}}" data-field="total_amount" bindinput="onFieldChange" placeholder="0.00" />
+    </view>
+    <view class="field">
+      <text class="label">分类</text>
+      <picker range="{{categories}}" range-key="label" bindchange="onCategoryChange">
+        <view class="picker">{{categories[categoryIndex].label || '选择'}}</view>
+      </picker>
+    </view>
+    <view class="field">
+      <text class="label">备注</text>
+      <textarea class="textarea" value="{{form.notes}}" data-field="notes" bindinput="onFieldChange" placeholder="可选备注" />
+    </view>
+
+    <button class="btn-save" bindtap="onSave" loading="{{saving}}" disabled="{{saving}}">
+      💾 保存发票
+    </button>
+  </view>
+</view>
+```
+
+- [ ] **步骤 3：Commit**
+
+```bash
+git add miniapp/miniprogram/pages/scan/ && git commit -m "feat: add scan page with camera, OCR, and duplicate detection"
+```
+
+---
+
+

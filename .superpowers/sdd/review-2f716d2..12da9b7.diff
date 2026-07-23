@@ -1,0 +1,340 @@
+﻿# Review package: 2f716d2..12da9b7
+
+## Commits
+12da9b7 refactor: move all mini-program files into miniapp/ directory
+40ba7e7 feat: scaffold project with base config files
+
+## Files changed
+ .superpowers/sdd/task-1-brief.md                   | 53 +++++++++++++++
+ miniapp/README.md                                  |  3 +
+ miniapp/miniprogram/app.js                         | 18 +++++
+ miniapp/miniprogram/app.json                       | 42 ++++++++++++
+ miniapp/miniprogram/app.wxss                       | 79 ++++++++++++++++++++++
+ .../pages/invoice-detail/invoice-detail.js         |  8 +++
+ .../pages/invoice-detail/invoice-detail.json       |  4 ++
+ .../pages/invoice-detail/invoice-detail.wxml       |  5 ++
+ .../pages/invoice-detail/invoice-detail.wxss       |  1 +
+ miniapp/miniprogram/sitemap.json                   |  8 +++
+ miniapp/miniprogram/utils/categories.js            | 15 ++++
+ miniapp/project.config.json                        | 10 +++
+ 12 files changed, 246 insertions(+)
+
+## Diff
+diff --git a/.superpowers/sdd/task-1-brief.md b/.superpowers/sdd/task-1-brief.md
+new file mode 100644
+index 0000000..06c35b2
+--- /dev/null
++++ b/.superpowers/sdd/task-1-brief.md
+@@ -0,0 +1,53 @@
++# 任务 1：项目脚手架
++
++创建微信小程序项目的所有基础文件。
++
++## 文件清单
++
++### 1. project.config.json
++项目根目录 `C:\Users\fengc\source\invoice-scanner\`
++
++```json
++{
++  "miniprogramRoot": "miniprogram/",
++  "appid": "YOUR_APPID",
++  "projectname": "invoice-scanner",
++  "setting": {
++    "es6": true,
++    "minified": true,
++    "urlCheck": true
++  }
++}
++```
++
++### 2. miniprogram/app.json
++注册所有页面 + TabBar 配置。4 个 Tab：发票、录入、报表、我的。
++
++### 3. miniprogram/app.js
++全局入口，检查登录状态，存储 supabaseUrl 和 anonKey（用占位符）。使用 `./utils/auth` 的 getToken()。
++
++### 4. miniprogram/app.wxss
++CSS 变量定义（精确值）：
++- --paper-white: #FCFAF7
++- --ink-blue: #1A3A6B
++- --ink-blue-light: #2D5A9E
++- --ink-black: #1E1E24
++- --steel-gray: #6B7280
++- --paper-texture: #F0EDE6
++- --pale-ink: #E2DED6
++- --seal-red: #C2413E
++- --stamp-green: #1F7D53
++
++全局类：.amount-large(22px bold), .text-title(16px), .text-body(14px), .text-caption(12px), .card, .btn-primary, .btn-danger, .toast-success
++
++### 5. miniprogram/utils/categories.js
++6 个分类常量数组 + getLabel() 函数。值：productos, plantas, suministros, servicios, transporte, otros
++
++### 6. README.md
++项目名"发票扫描管理工具"，一句话描述。
++
++## 全局约束
++- 所有颜色使用 CSS 变量的精确值（见上方）
++- 分类值必须精确：productos, plantas, suministros, servicios, transporte, otros
++- app.json pages 数组必须包含所有 6 个页面路径
++- 按钮最小高度 44px（.btn-primary, .btn-danger）
+diff --git a/miniapp/README.md b/miniapp/README.md
+new file mode 100644
+index 0000000..73629df
+--- /dev/null
++++ b/miniapp/README.md
+@@ -0,0 +1,3 @@
++# 发票扫描管理工具
++
++一个基于微信小程序的发票扫描与管理工具，支持发票 OCR 识别、分类管理和报表统计。
+diff --git a/miniapp/miniprogram/app.js b/miniapp/miniprogram/app.js
+new file mode 100644
+index 0000000..15808bd
+--- /dev/null
++++ b/miniapp/miniprogram/app.js
+@@ -0,0 +1,18 @@
++const { getToken } = require('./utils/auth');
++
++App({
++  globalData: {
++    supabaseUrl: 'YOUR_SUPABASE_URL',
++    supabaseAnonKey: 'YOUR_SUPABASE_ANON_KEY',
++    userInfo: null
++  },
++
++  onLaunch() {
++    const token = getToken();
++    if (!token) {
++      wx.navigateTo({
++        url: '/pages/login/login'
++      });
++    }
++  }
++});
+diff --git a/miniapp/miniprogram/app.json b/miniapp/miniprogram/app.json
+new file mode 100644
+index 0000000..9d00aaa
+--- /dev/null
++++ b/miniapp/miniprogram/app.json
+@@ -0,0 +1,42 @@
++{
++  "pages": [
++    "pages/invoices/invoices",
++    "pages/scan/scan",
++    "pages/report/report",
++    "pages/profile/profile",
++    "pages/login/login",
++    "pages/invoice-detail/invoice-detail"
++  ],
++  "window": {
++    "navigationBarBackgroundColor": "#FCFAF7",
++    "navigationBarTextStyle": "black",
++    "navigationBarTitleText": "发票扫描管理",
++    "backgroundColor": "#FCFAF7",
++    "backgroundTextStyle": "dark"
++  },
++  "tabBar": {
++    "color": "#6B7280",
++    "selectedColor": "#1A3A6B",
++    "backgroundColor": "#FCFAF7",
++    "borderStyle": "white",
++    "list": [
++      {
++        "pagePath": "pages/invoices/invoices",
++        "text": "发票"
++      },
++      {
++        "pagePath": "pages/scan/scan",
++        "text": "录入"
++      },
++      {
++        "pagePath": "pages/report/report",
++        "text": "报表"
++      },
++      {
++        "pagePath": "pages/profile/profile",
++        "text": "我的"
++      }
++    ]
++  },
++  "sitemapLocation": "sitemap.json"
++}
+diff --git a/miniapp/miniprogram/app.wxss b/miniapp/miniprogram/app.wxss
+new file mode 100644
+index 0000000..9104529
+--- /dev/null
++++ b/miniapp/miniprogram/app.wxss
+@@ -0,0 +1,79 @@
++/** app.wxss */
++page {
++  --paper-white: #FCFAF7;
++  --ink-blue: #1A3A6B;
++  --ink-blue-light: #2D5A9E;
++  --ink-black: #1E1E24;
++  --steel-gray: #6B7280;
++  --paper-texture: #F0EDE6;
++  --pale-ink: #E2DED6;
++  --seal-red: #C2413E;
++  --stamp-green: #1F7D53;
++
++  background-color: var(--paper-white);
++  color: var(--ink-black);
++  font-size: 14px;
++  font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
++}
++
++.amount-large {
++  font-size: 22px;
++  font-weight: bold;
++  color: var(--ink-black);
++}
++
++.text-title {
++  font-size: 16px;
++  color: var(--ink-black);
++}
++
++.text-body {
++  font-size: 14px;
++  color: var(--steel-gray);
++}
++
++.text-caption {
++  font-size: 12px;
++  color: var(--steel-gray);
++}
++
++.card {
++  background-color: var(--paper-white);
++  border-radius: 12rpx;
++  padding: 24rpx;
++  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.08);
++}
++
++.btn-primary {
++  min-height: 44px;
++  background-color: var(--ink-blue);
++  color: var(--paper-white);
++  border-radius: 8rpx;
++  padding: 0 32rpx;
++  font-size: 16px;
++  font-weight: 500;
++  display: flex;
++  align-items: center;
++  justify-content: center;
++}
++
++.btn-danger {
++  min-height: 44px;
++  background-color: var(--seal-red);
++  color: var(--paper-white);
++  border-radius: 8rpx;
++  padding: 0 32rpx;
++  font-size: 16px;
++  font-weight: 500;
++  display: flex;
++  align-items: center;
++  justify-content: center;
++}
++
++.toast-success {
++  background-color: var(--stamp-green);
++  color: var(--paper-white);
++  border-radius: 8rpx;
++  padding: 16rpx 32rpx;
++  font-size: 14px;
++}
+diff --git a/miniapp/miniprogram/pages/invoice-detail/invoice-detail.js b/miniapp/miniprogram/pages/invoice-detail/invoice-detail.js
+new file mode 100644
+index 0000000..39039e8
+--- /dev/null
++++ b/miniapp/miniprogram/pages/invoice-detail/invoice-detail.js
+@@ -0,0 +1,8 @@
++Page({
++  data: {},
++
++  onLoad(options) {
++    const { id } = options;
++    this.setData({ id });
++  }
++});
+diff --git a/miniapp/miniprogram/pages/invoice-detail/invoice-detail.json b/miniapp/miniprogram/pages/invoice-detail/invoice-detail.json
+new file mode 100644
+index 0000000..e2fd9ad
+--- /dev/null
++++ b/miniapp/miniprogram/pages/invoice-detail/invoice-detail.json
+@@ -0,0 +1,4 @@
++{
++  "navigationBarTitleText": "发票详情",
++  "usingComponents": {}
++}
+diff --git a/miniapp/miniprogram/pages/invoice-detail/invoice-detail.wxml b/miniapp/miniprogram/pages/invoice-detail/invoice-detail.wxml
+new file mode 100644
+index 0000000..41e2a6d
+--- /dev/null
++++ b/miniapp/miniprogram/pages/invoice-detail/invoice-detail.wxml
+@@ -0,0 +1,5 @@
++<view class="container">
++  <view class="card">
++    <text class="text-title">发票详情</text>
++  </view>
++</view>
+diff --git a/miniapp/miniprogram/pages/invoice-detail/invoice-detail.wxss b/miniapp/miniprogram/pages/invoice-detail/invoice-detail.wxss
+new file mode 100644
+index 0000000..f8bc151
+--- /dev/null
++++ b/miniapp/miniprogram/pages/invoice-detail/invoice-detail.wxss
+@@ -0,0 +1 @@
++/** invoice-detail.wxss */
+diff --git a/miniapp/miniprogram/sitemap.json b/miniapp/miniprogram/sitemap.json
+new file mode 100644
+index 0000000..1de189d
+--- /dev/null
++++ b/miniapp/miniprogram/sitemap.json
+@@ -0,0 +1,8 @@
++{
++  "rules": [
++    {
++      "action": "allow",
++      "page": "*"
++    }
++  ]
++}
+diff --git a/miniapp/miniprogram/utils/categories.js b/miniapp/miniprogram/utils/categories.js
+new file mode 100644
+index 0000000..3bc748c
+--- /dev/null
++++ b/miniapp/miniprogram/utils/categories.js
+@@ -0,0 +1,15 @@
++const CATEGORIES = [
++  { value: 'productos', label: 'Productos' },
++  { value: 'plantas', label: 'Plantas' },
++  { value: 'suministros', label: 'Suministros' },
++  { value: 'servicios', label: 'Servicios' },
++  { value: 'transporte', label: 'Transporte' },
++  { value: 'otros', label: 'Otros' }
++];
++
++function getLabel(value) {
++  const category = CATEGORIES.find(c => c.value === value);
++  return category ? category.label : value;
++}
++
++module.exports = { CATEGORIES, getLabel };
+diff --git a/miniapp/project.config.json b/miniapp/project.config.json
+new file mode 100644
+index 0000000..3a1a3b8
+--- /dev/null
++++ b/miniapp/project.config.json
+@@ -0,0 +1,10 @@
++{
++  "miniprogramRoot": "miniprogram/",
++  "appid": "YOUR_APPID",
++  "projectname": "invoice-scanner",
++  "setting": {
++    "es6": true,
++    "minified": true,
++    "urlCheck": true
++  }
++}

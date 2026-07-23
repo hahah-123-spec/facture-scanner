@@ -1,11 +1,11 @@
 {
   "pages": [
-    "pages/invoices/invoices",
-    "pages/scan/scan",
-    "pages/report/report",
-    "pages/profile/profile",
     "pages/login/login",
-    "pages/invoice-detail/invoice-detail"
+    "pages/invoices/list",
+    "pages/invoices/detail",
+    "pages/scan/add",
+    "pages/report/index",
+    "pages/profile/index"
   ],
   "window": {
     "navigationBarBackgroundColor": "#FCFAF7",
@@ -21,19 +21,19 @@
     "borderStyle": "white",
     "list": [
       {
-        "pagePath": "pages/invoices/invoices",
+        "pagePath": "pages/invoices/list",
         "text": "发票"
       },
       {
-        "pagePath": "pages/scan/scan",
+        "pagePath": "pages/scan/add",
         "text": "录入"
       },
       {
-        "pagePath": "pages/report/report",
+        "pagePath": "pages/report/index",
         "text": "报表"
       },
       {
-        "pagePath": "pages/profile/profile",
+        "pagePath": "pages/profile/index",
         "text": "我的"
       }
     ]

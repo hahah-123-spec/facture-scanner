@@ -23,6 +23,9 @@ var pageProfile = {
           '<div class="profile-row">' +
             '<span class="row-label" style="font-size:12px;color:var(--steel-gray)">Comparte este codigo con tus compañeros para que vean las mismas facturas</span>' +
           '</div>' +
+          '<div class="profile-row">' +
+            '<button class="btn btn-danger btn-sm" id="profileLeaveBtn">Salir de la tienda</button>' +
+          '</div>' +
         '</div>' +
       '</div>' +
       '<div class="profile-section">' +
@@ -59,6 +62,30 @@ var pageProfile = {
 
   _bindEvents: function () {
     var self = this;
+
+    // Leave workspace button
+    var leaveBtn = document.getElementById('profileLeaveBtn');
+    if (leaveBtn) {
+      leaveBtn.addEventListener('click', function () {
+        showConfirm(
+          'Salir de la tienda',
+          'Dejaras de ver las facturas compartidas y tendras tu propia tienda. Continuar?',
+          'Salir', 'Cancelar'
+        ).then(function (ok) {
+          if (!ok) return;
+          showLoading('Saliendo...');
+          return auth.leaveWorkspace();
+        }).then(function () {
+          hideLoading();
+          var codeDisp = document.getElementById('profileInviteCode');
+          if (codeDisp) codeDisp.textContent = WS.code || '—';
+          showToast('Has salido de la tienda', 'success');
+        }).catch(function (err) {
+          hideLoading();
+          showToast('Error al salir', 'error');
+        });
+      });
+    }
 
     // Join workspace button
     var joinBtn = document.getElementById('profileJoinBtn');

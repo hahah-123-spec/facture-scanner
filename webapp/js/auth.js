@@ -1,6 +1,6 @@
 /* Supabase Auth helpers */
 
-var WS = { id: null, code: null }; // current workspace
+var WS = { id: null, code: null, role: null }; // current workspace
 
 var auth = {
   login: async function (email, password) {
@@ -38,7 +38,7 @@ var auth = {
   logout: async function () {
     var result = await supabaseClient.auth.signOut();
     if (result.error) throw result.error;
-    WS = { id: null, code: null };
+    WS = { id: null, code: null, role: null };
   },
 
   getCurrentUser: async function () {
@@ -59,6 +59,13 @@ var auth = {
 
   leaveWorkspace: async function () {
     var result = await supabaseClient.rpc('leave_workspace');
+    if (result.error) throw result.error;
+    await auth._loadWorkspace();
+    return WS;
+  },
+
+  transferOwnership: async function (newAdminId) {
+    var result = await supabaseClient.rpc('transfer_ownership', { p_new_admin_id: newAdminId });
     if (result.error) throw result.error;
     await auth._loadWorkspace();
     return WS;
@@ -85,12 +92,13 @@ var auth = {
       if (!userResult.data || !userResult.data.user) return;
       var result = await supabaseClient
         .from('profiles')
-        .select('workspace_id, invite_code')
+        .select('workspace_id, invite_code, role')
         .eq('user_id', userResult.data.user.id)
         .single();
       if (result.data) {
         WS.id = result.data.workspace_id;
         WS.code = result.data.invite_code;
+        WS.role = result.data.role;
       }
     } catch (e) {
       console.warn('Load workspace error:', e.message);

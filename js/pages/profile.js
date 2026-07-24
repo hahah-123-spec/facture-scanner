@@ -24,8 +24,10 @@ var pageProfile = {
           '<div class="profile-row">' +
             '<span class="row-label" style="font-size:12px;color:var(--steel-gray)">Comparte este codigo con tus compañeros</span>' +
           '</div>' +
-          '<div class="profile-row">' +
-            '<button class="btn btn-danger btn-sm" id="profileLeaveBtn">Salir de la tienda</button>' +
+          '<div class="profile-row" id="profileLeaveRow">' +
+            (WS.role === 'admin'
+              ? '<span style="font-size:12px;color:var(--amount-orange)">Como propietario, transfiere la tienda a un miembro antes de salir.</span>'
+              : '<button class="btn btn-danger btn-sm" id="profileLeaveBtn">Salir de la tienda</button>') +
           '</div>' +
         '</div>' +
       '</div>' +
@@ -59,7 +61,7 @@ var pageProfile = {
         '<div class="card">' +
           '<div class="profile-row">' +
             '<span class="row-label">Version</span>' +
-            '<span class="row-value" id="profileVersion">v4</span>' +
+            '<span class="row-value" id="profileVersion">v5</span>' +
           '</div>' +
         '</div>' +
       '</div>' +
@@ -84,25 +86,7 @@ var pageProfile = {
     // Leave workspace button
     var leaveBtn = document.getElementById('profileLeaveBtn');
     if (leaveBtn) {
-      leaveBtn.addEventListener('click', function () {
-        showConfirm(
-          'Salir de la tienda',
-          'Dejaras de ver las facturas compartidas y tendras tu propia tienda. Continuar?',
-          'Salir', 'Cancelar'
-        ).then(function (ok) {
-          if (!ok) return;
-          showLoading('Saliendo...');
-          return auth.leaveWorkspace();
-        }).then(function () {
-          hideLoading();
-          var codeDisp = document.getElementById('profileInviteCode');
-          if (codeDisp) codeDisp.textContent = WS.code || '—';
-          showToast('Has salido de la tienda', 'success');
-        }).catch(function (err) {
-          hideLoading();
-          showToast('Error al salir', 'error');
-        });
-      });
+      leaveBtn.addEventListener('click', self._onLeaveClick);
     }
 
     // Join workspace button
@@ -161,6 +145,26 @@ var pageProfile = {
     }
   },
 
+  _onLeaveClick: function () {
+    showConfirm(
+      'Salir de la tienda',
+      'Dejaras de ver las facturas compartidas y tendras tu propia tienda. Continuar?',
+      'Salir', 'Cancelar'
+    ).then(function (ok) {
+      if (!ok) return;
+      showLoading('Saliendo...');
+      return auth.leaveWorkspace();
+    }).then(function () {
+      hideLoading();
+      var codeDisp = document.getElementById('profileInviteCode');
+      if (codeDisp) codeDisp.textContent = WS.code || '—';
+      showToast('Has salido de la tienda', 'success');
+    }).catch(function (err) {
+      hideLoading();
+      showToast('Error al salir', 'error');
+    });
+  },
+
   _renderMembers: function (members) {
     var el = document.getElementById('profileMemberList');
     if (!el) return;
@@ -169,6 +173,7 @@ var pageProfile = {
       return;
     }
     var self = this;
+    var isViewerAdmin = WS.role === 'admin';
     var html = '';
     for (var i = 0; i < members.length; i++) {
       var m = members[i];
@@ -177,12 +182,52 @@ var pageProfile = {
         '<div class="profile-row">' +
           '<span class="row-label">' + m.member_email + (isAdmin ? ' 👑' : '') + '</span>' +
           (isAdmin ? '<span class="row-value" style="font-size:12px;color:var(--stamp-green)">Admin</span>' : '') +
-          (!isAdmin ? '<button class="btn btn-sm" style="background:transparent;color:var(--seal-red);padding:4px 8px;min-height:28px" data-remove="' + m.member_id + '">Quitar</button>' : '') +
+          (isViewerAdmin && !isAdmin
+            ? '<div style="display:flex;gap:6px">' +
+                '<button class="btn btn-sm" style="background:transparent;color:var(--ink-blue-light);padding:4px 8px;min-height:28px" data-transfer="' + m.member_id + '">Transferir</button>' +
+                '<button class="btn btn-sm" style="background:transparent;color:var(--seal-red);padding:4px 8px;min-height:28px" data-remove="' + m.member_id + '">Quitar</button>' +
+              '</div>'
+            : '') +
         '</div>';
     }
     el.innerHTML = html;
 
-    // Bind remove buttons
+    // Bind transfer buttons (admin only)
+    var transferBtns = el.querySelectorAll('[data-transfer]');
+    for (var k = 0; k < transferBtns.length; k++) {
+      transferBtns[k].addEventListener('click', function (e) {
+        var userId = this.getAttribute('data-transfer');
+        var memberEmail = this.closest('.profile-row').querySelector('.row-label').textContent.replace(' 👑', '');
+        showConfirm(
+          'Transferir tienda',
+          'Cederas la propiedad a ' + memberEmail + '. Dejaras de ser admin y pasaras a ser miembro. Continuar?',
+          'Transferir', 'Cancelar'
+        ).then(function (ok) {
+          if (!ok) return;
+          showLoading('Transfiriendo...');
+          return auth.transferOwnership(userId);
+        }).then(function () {
+          hideLoading();
+          showToast('Tienda transferida. Ahora eres miembro.', 'success');
+          // Reload members + re-render the whole page (leave button appears)
+          auth.getMembers().then(function (m) { self._renderMembers(m); });
+          // Show leave button now and bind it
+          var leaveRow = document.getElementById('profileLeaveRow');
+          if (leaveRow) {
+            leaveRow.innerHTML = '<button class="btn btn-danger btn-sm" id="profileLeaveBtn">Salir de la tienda</button>';
+            var newLeaveBtn = document.getElementById('profileLeaveBtn');
+            if (newLeaveBtn) {
+              newLeaveBtn.addEventListener('click', self._onLeaveClick);
+            }
+          }
+        }).catch(function (err) {
+          hideLoading();
+          showToast('Error al transferir', 'error');
+        });
+      });
+    }
+
+    // Bind remove buttons (admin only)
     var btns = el.querySelectorAll('[data-remove]');
     for (var j = 0; j < btns.length; j++) {
       btns[j].addEventListener('click', function (e) {

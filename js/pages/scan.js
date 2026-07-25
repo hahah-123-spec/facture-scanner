@@ -607,8 +607,8 @@ var pageScan = {
           for (var sOff = l - 5; sOff < l; sOff++) {
             if (sOff < 0) continue;
             var candidate = lines[sOff].replace(/[,\s]+$/, '');
-            // Person name: 2-3 words, first letter capital, no special chars except spaces/periods
-            if (/^[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)?$/.test(candidate)) {
+            // Person name: 2-3 words, first letter capital (OCR may output ALL CAPS)
+            if (/^[A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑáéíóúñ]+\s+[A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑáéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑáéíóúñ]+)?$/.test(candidate)) {
               supplier = candidate;
               break;
             }
@@ -653,7 +653,7 @@ var pageScan = {
         var nameLine = lines[oo];
         if (nameLine.length > 5
             && /^[A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑáéíóúñ\s,\.\-&]{4,}$/.test(nameLine)
-            && (nameLine.match(/[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+/g) || []).length >= 2
+            && (nameLine.match(/[A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑáéíóúñ]+/g) || []).length >= 2
             && !/\d{4}/.test(nameLine)
             && !/factura|fecha|cliente|nif|cif|telefono|direccion|poblacion|provincia|email|www|http|pagina|pag/i.test(nameLine)) {
           supplier = nameLine;
@@ -773,9 +773,9 @@ var pageScan = {
     // Tax section lines often have rates shown as plain numbers like "10,00" near IVA column
     if (!ivaRate) {
       for (var ss = 0; ss < footerLines.length; ss++) {
-        // Match standalone "10,00" or "21,00" or "10.00" or "4,00" patterns
+        // Match standalone "10,00" or "21,00" or "10.00" patterns (allow trailing chars)
         var fl = footerLines[ss];
-        var plainMatch = fl.match(/^(\d{1,2})[,.]\d{2}$/);
+        var plainMatch = fl.match(/^(\d{1,2})[,.]\d{2}\s*\|?\s*$/);
         if (plainMatch) {
           var pr = parseInt(plainMatch[1], 10);
           if (isValidIvaRate(pr)) { ivaRate = pr; break; }

@@ -315,22 +315,35 @@ var pageScan = {
 
       var text = best.text;
 
-      // ---- NOISE FILTER: remove garbage lines ----
-      // Lines that are mostly symbols/artifacts have very high ratio of non-alphanumeric chars
+      // ---- ENHANCED NOISE FILTER ----
       var rawLines = text.split('\n');
       var filteredLines = [];
+      // Skip first 3 lines (typically camera edge artifacts) and last 2 lines
+      var startIdx = 3;
+      var endIdx = rawLines.length - 2;
       for (var i = 0; i < rawLines.length; i++) {
         var line = rawLines[i].trim();
-        if (!line) continue;
-        // Count alphanumeric chars (including Spanish accented chars)
+        if (!line || line.length < 3) continue;
+        // Remove lines that are purely box-drawing / symbol garbage
         var alpha = (line.match(/[A-Za-zÁÉÍÓÚÑáéíóúñ0-9]/g) || []).length;
+        // Count "useful" separators (spaces, dots, commas, slashes, hyphens)
+        var useful = (line.match(/[A-Za-zÁÉÍÓÚÑáéíóúñ0-9\s\.,\/\-\€\%\(\)]/g) || []).length;
         var ratio = alpha / Math.max(line.length, 1);
-        // Keep lines that have >30% alphanumeric content
-        if (ratio > 0.3 && line.length > 1) {
+        var usefulRatio = useful / Math.max(line.length, 1);
+        // Keep lines that have >25% alphanumeric AND >60% useful content
+        // OR lines that are very short (<20 chars) with >40% useful
+        if ((ratio > 0.25 && usefulRatio > 0.6) || (line.length < 20 && usefulRatio > 0.4)) {
           filteredLines.push(line);
         }
       }
-      var cleanText = filteredLines.join('\n');
+      // Also remove duplicate/consecutive lines (OCR artifact)
+      var deduped = [];
+      for (var di = 0; di < filteredLines.length; di++) {
+        if (di === 0 || filteredLines[di] !== filteredLines[di - 1]) {
+          deduped.push(filteredLines[di]);
+        }
+      }
+      var cleanText = deduped.join('\n');
 
       // Show debug info
       self._showDebug(cleanText, best.confidence, best.label, text.length - cleanText.length);
@@ -510,16 +523,13 @@ var pageScan = {
     // ----- DATE EXTRACTION -----
     var date = '';
 
-    // Month name mapping (Spanish → number, including OCR variants)
+    // Month name mapping (Spanish → number)
     var monthNames = {
       'enero': '01', 'febrero': '02', 'marzo': '03', 'abril': '04',
       'mayo': '05', 'junio': '06', 'julio': '07', 'agosto': '08',
-      'septiembre': '09', 'octubre': '10', 'noviembre': '11', 'diciembre': '12',
-      // OCR variants (missing accents)
-      'febrero': '02', 'setiembre': '09', 'setiembre': '09'
+      'septiembre': '09', 'octubre': '10', 'noviembre': '11', 'diciembre': '12'
     };
 
-    // Helper: validate and format date parts → yyyy-mm-dd
     var makeDate = function (d, m, y) {
       var dd = parseInt(d, 10), mm = parseInt(m, 10), yy = parseInt(y, 10);
       if (dd >= 1 && dd <= 31 && mm >= 1 && mm <= 12 && yy >= 2000 && yy <= 2100) {
@@ -528,20 +538,19 @@ var pageScan = {
       return '';
     };
 
-    // Helper: fix OCR errors in date digits
     var fixDateStr = function (s) {
       return s.replace(/[oO]/g, '0').replace(/[sS]/g, '5').replace(/[lI]/g, '1')
               .replace(/Z/g, '2').replace(/B/g, '8');
     };
 
     // Strategy 1: Spanish text date "15 de julio de 2026"
-    var textDateMatch = clean.match(/(\d{1,2})\s+de\s+(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre|setiembre)\s+(?:de\s+)?(\d{4})/i);
+    var textDateMatch = clean.match(/(\d{1,2})\s+de\s+(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\s+(?:de\s+)?(\d{4})/i);
     if (textDateMatch) {
       var mth = monthNames[textDateMatch[2].toLowerCase()];
       date = makeDate(fixDateStr(textDateMatch[1]), mth, fixDateStr(textDateMatch[3]));
     }
 
-    // Strategy 2: find "Fecha" keyword nearby — check 3 lines around it
+    // Strategy 2: find "Fecha" keyword nearby
     if (!date) {
       for (var i = 0; i < lines.length; i++) {
         if (/fecha/i.test(lines[i])) {
@@ -555,11 +564,24 @@ var pageScan = {
       }
     }
 
-    // Strategy 3: find ANY valid dd/mm/yyyy in text
+    // Strategy 3: date in header area (first 10 lines) — invoice number + date pattern
+    // Spanish invoice headers often have: "FRA-XXX DD/MM/YYYY" or "A-XXXXXXXX DD/MM/YYYY N"
     if (!date) {
-      var allDateMatches = clean.match(/\d{1,2}\s*[\/\-\.,\|]\s*\d{1,2}\s*[\/\-\.,\|]\s*\d{4}/g) || [];
-      for (var j = 0; j < allDateMatches.length; j++) {
-        var adm = allDateMatches[j].match(/(\d{1,2})\s*[\/\-\.,\|]\s*(\d{1,2})\s*[\/\-\.,\|]\s*(\d{4})/);
+      for (var j = 0; j < Math.min(lines.length, 12); j++) {
+        // Look for a line with both an alphanumeric code AND a date
+        var headerDM = lines[j].match(/(\d{1,2})\s*[\/\-\.,\|]\s*(\d{1,2})\s*[\/\-\.,\|]\s*(\d{4})/);
+        if (headerDM) {
+          date = makeDate(fixDateStr(headerDM[1]), fixDateStr(headerDM[2]), fixDateStr(headerDM[3]));
+          if (date) break;
+        }
+      }
+    }
+
+    // Strategy 4: find ANY valid dd/mm/yyyy in entire text (with stricter validation)
+    if (!date) {
+      var allDateMatches = clean.match(/\d{1,2}\s*[\/\-\.,\|]\s*(\d{1,2})\s*[\/\-\.,\|]\s*(\d{4})/g) || [];
+      for (var k = 0; k < allDateMatches.length; k++) {
+        var adm = allDateMatches[k].match(/(\d{1,2})\s*[\/\-\.,\|]\s*(\d{1,2})\s*[\/\-\.,\|]\s*(\d{4})/);
         date = makeDate(fixDateStr(adm[1]), fixDateStr(adm[2]), fixDateStr(adm[3]));
         if (date) break;
       }
@@ -619,96 +641,141 @@ var pageScan = {
 
     // ----- TOTAL EXTRACTION -----
     var total = 0;
+    var totalSource = '';
     // Strategy 1: "TOTAL" keyword (with OCR error tolerance)
     for (var o = 0; o < lines.length; o++) {
-      if (/^(TOTAL|TOTA[LI1]|IMPORTE\s*TOTAL|TOTAL\s+FACTURA|TOTAL\s+[€Ee]?|T\.TOTAL|T\.\s*TOTAL)/i.test(lines[o])) {
+      if (/^(TOTAL|TOTA[LI1]|IMPORTE\s*TOTAL|TOTAL\s+FACTURA|TOTAL\s+[€Ee]?|T\.TOTAL|T\.\s*TOTAL|TOTAL\s+EUR)/i.test(lines[o])) {
         total = findAmountInLine(lines[o]);
-        if (total) break;
-        // Also check next line
+        if (total) { totalSource = 'TOTAL keyword'; break; }
         if (o + 1 < lines.length) {
           total = findAmountInLine(lines[o + 1]);
-          if (total) break;
+          if (total) { totalSource = 'line after TOTAL'; break; }
         }
       }
     }
-    // Strategy 2: "[€Ee]" or "[EU]R" near end of document (OCR often reads € as E, e, C)
+    // Strategy 2: Summary line with % and amounts (typical Spanish invoice footer)
+    // Pattern: "% IVA_rate% IVA_amount TOTAL_AMOUNT" e.g. "10,0% 14% 0,70 65,70"
     if (!total) {
-      for (var p = lines.length - 1; p >= Math.max(0, lines.length - 10); p--) {
-        if (/[€EeCc]|[EU]R/i.test(lines[p]) && !/NUMERO|FECHA|DIRECCION/i.test(lines[p])) {
-          total = findAmountInLine(lines[p]);
-          if (total) break;
+      for (var p = lines.length - 1; p >= Math.max(0, lines.length - 15); p--) {
+        var line = lines[p];
+        // Line contains a percentage AND at least two amounts
+        if (/%/.test(line)) {
+          var amountsInLine = (line.match(/\d+[.,]\d{2}/g) || []).map(function (s) {
+            return parseAmount(s);
+          }).filter(function (n) { return !isNaN(n) && n > 0 && n < 100000; });
+          if (amountsInLine.length >= 2) {
+            // Total is typically the largest amount in the summary line
+            amountsInLine.sort(function (a, b) { return b - a; });
+            total = amountsInLine[0];
+            totalSource = 'summary line: ' + line.substring(0, 50);
+            break;
+          }
         }
       }
     }
-    // Strategy 3: largest non-date amount near end of document
+    // Strategy 3: "[€Ee]" or "EUR" near end of document
     if (!total) {
-      // Only check last third of document (total is typically near the end)
-      var endText = lines.slice(Math.floor(lines.length * 0.6)).join(' ');
+      for (var q = lines.length - 1; q >= Math.max(0, lines.length - 10); q--) {
+        if (/[€EeCc]|[EU]R/i.test(lines[q]) && !/NUMERO|FECHA|DIRECCION|EMAIL|TEL/i.test(lines[q])) {
+          total = findAmountInLine(lines[q]);
+          if (total) { totalSource = 'EUR/€ symbol'; break; }
+        }
+      }
+    }
+    // Strategy 4: largest non-date amount in last 40% of document
+    if (!total) {
+      var endText = lines.slice(Math.floor(lines.length * 0.55)).join(' ');
       var allAmounts = findAllAmounts(endText);
       if (allAmounts.length === 0) allAmounts = findAllAmounts(clean);
       allAmounts = allAmounts.filter(function (a) { return a < 2000 || a > 2100; });
+      // Exclude very small amounts (likely IVA amounts, cent values, etc.)
+      allAmounts = allAmounts.filter(function (a) { return a > 0.5; });
       if (allAmounts.length > 0) {
         allAmounts.sort(function (a, b) { return b - a; });
         total = allAmounts[0];
+        totalSource = 'largest in footer';
       }
     }
 
     // ----- IVA RATE EXTRACTION -----
     var ivaRate = 0;
-    // Strategy 1: explicit percentage near "IVA" (OCR reads IVA as IVA, I\/A, 1VA, etc.)
-    for (var q = 0; q < lines.length; q++) {
-      if (/[I1]VA|[I1]\.?V\.?A\.?/i.test(lines[q])) {
-        // Look for percentage: "21%" or "21 %" (OCR might read % as different chars)
-        var rateMatch = lines[q].match(/(\d{1,2})\s*[%]/);
-        if (!rateMatch) {
-          // Check next line for percentage
-          var ctxLine = q + 1 < lines.length ? lines[q] + ' ' + lines[q + 1] : lines[q];
-          rateMatch = ctxLine.match(/(\d{1,2})\s*[%]/);
-        }
-        if (rateMatch) {
-          var rate = parseInt(rateMatch[1], 10);
-          if (rate === 21 || rate === 10 || rate === 4 || rate === 5 || rate === 7) {
+    // Strategy 1: percentage in summary/footer lines with IVA context
+    // Handles "10,0%", "21%", "IVA 21%", "10,0% IVA" etc.
+    // Look in last 40% of document where IVA breakdown typically appears
+    var footerStart = Math.floor(lines.length * 0.55);
+    var footerText = lines.slice(footerStart).join(' ');
+    // Find percentages: "X%" or "X,X%" (Spanish decimal comma in percentages)
+    var pctPattern = /(\d{1,2})(?:[,.]\d)?\s*%/g;
+    var pctMatches = footerText.match(pctPattern);
+    if (pctMatches) {
+      for (var qq = 0; qq < pctMatches.length; qq++) {
+        var rMatch = pctMatches[qq].match(/(\d{1,2})/);
+        if (rMatch) {
+          var rate = parseInt(rMatch[1], 10);
+          // Valid Spanish IVA rates: 21, 10, 4 (and variations like 7, 5)
+          if (rate >= 4 && rate <= 25 && [21, 10, 4, 7, 5, 14].indexOf(rate) >= 0) {
             ivaRate = rate;
             break;
           }
         }
       }
     }
-    // Strategy 2: find common rates anywhere
+    // Strategy 2: look for percentage near "IVA" anywhere
     if (!ivaRate) {
-      var pctMatch = clean.match(/(21|10|4)\s*[%]/);
-      if (pctMatch) ivaRate = parseInt(pctMatch[1], 10);
+      for (var rr = 0; rr < lines.length; rr++) {
+        if (/[I1]VA|[I1]\.?V\.?A\.?/i.test(lines[rr])) {
+          var rateMatch = lines[rr].match(/(\d{1,2})(?:[,.]\d)?\s*%/);
+          if (!rateMatch && rr + 1 < lines.length) {
+            rateMatch = (lines[rr] + ' ' + lines[rr + 1]).match(/(\d{1,2})(?:[,.]\d)?\s*%/);
+          }
+          if (rateMatch) {
+            var r2 = parseInt(rateMatch[1], 10);
+            if ([21, 10, 4, 7, 5, 14].indexOf(r2) >= 0) { ivaRate = r2; break; }
+          }
+        }
+      }
     }
-    // Strategy 3: find "IVA 21" or "IVA21" or "IVA: 21"
+    // Strategy 3: "IVA 21" or "IVA21" or "IVA: 21"
     if (!ivaRate) {
       var ivaMatch = clean.match(/[I1]VA\s*[:.]?\s*(\d{1,2})/i);
       if (ivaMatch) {
         var ir = parseInt(ivaMatch[1], 10);
-        if (ir === 21 || ir === 10 || ir === 4) ivaRate = ir;
+        if ([21, 10, 4].indexOf(ir) >= 0) ivaRate = ir;
       }
     }
 
     // ----- BASE (Base Imponible) EXTRACTION -----
     var base = 0;
-    // Strategy 1: "BASE IMPONIBLE" keyword (OCR tolerant)
-    for (var r = 0; r < lines.length; r++) {
-      if (/(BASE|BA[5S]E)\s*(IMPO[NM]IBLE|IMPO[NM][I1]BLE)|SUBTOTAL|IMPORTE\s*NETO|BASE/i.test(lines[r])) {
-        base = findAmountInLine(lines[r]);
-        if (!base && r + 1 < lines.length) base = findAmountInLine(lines[r + 1]);
-        if (/IVA/i.test(lines[r])) base = 0;
+    // Strategy 1: "BASE IMPONIBLE" keyword
+    for (var ss = 0; ss < lines.length; ss++) {
+      if (/(BASE|BA[5S]E)\s*(IMPO[NM]IBLE|IMPO[NM][I1]BLE)|SUBTOTAL|IMPORTE\s*NETO/i.test(lines[ss])) {
+        base = findAmountInLine(lines[ss]);
+        if (!base && ss + 1 < lines.length) base = findAmountInLine(lines[ss + 1]);
+        if (/IVA|[I1]VA/i.test(lines[ss])) base = 0;
         if (base) break;
       }
     }
-    // Strategy 2: amount right before the IVA line
-    if (!base) {
-      for (var s = 0; s < lines.length; s++) {
-        if (/^[I1]VA\b|^[I1]\.?V\.?A\.?\b|^\d{1,2}\s*[%]\s*[I1]VA/i.test(lines[s])) {
-          // Check 1-3 lines before IVA
-          for (var t = s - 1; t >= Math.max(0, s - 3); t--) {
-            base = findAmountInLine(lines[t]);
-            if (base) break;
+    // Strategy 2: in the summary line, find the amount just before the IVA amount
+    // Pattern: "... %Iva IVA_amount TOTAL" → the second-to-last amount is often the base
+    if (!base && total && ivaRate) {
+      for (var tt = lines.length - 1; tt >= footerStart; tt--) {
+        var sLine = lines[tt];
+        if (/%/.test(sLine)) {
+          var sAmounts = (sLine.match(/\d+[.,]\d{2}/g) || []).map(function (s) {
+            return parseAmount(s);
+          }).filter(function (n) { return !isNaN(n) && n > 0 && n < 100000; });
+          // If line has 3+ amounts, the middle one might be the base
+          // Or: the last amount is total, the one before might be IVA amount → base = total - iva_amount
+          if (sAmounts.length >= 3) {
+            // Try: total is largest, IVA amount is smallest, base = total - IVA_amount
+            var sorted = sAmounts.slice().sort(function (a, b) { return b - a; });
+            var largest = sorted[0];
+            var smallest = sorted[sorted.length - 1];
+            if (Math.abs(largest - total) < 0.02 && smallest < total * 0.5) {
+              base = Math.round((largest - smallest) * 100) / 100;
+              break;
+            }
           }
-          if (base) break;
         }
       }
     }

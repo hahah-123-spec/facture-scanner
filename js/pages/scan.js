@@ -345,11 +345,11 @@ var pageScan = {
       }
       var cleanText = deduped.join('\n');
 
-      // Show debug info
-      self._showDebug(cleanText, best.confidence, best.label, text.length - cleanText.length, extracted.trace);
-
       // Extract data
       var extracted = self._extractInvoiceData(cleanText);
+
+      // Show debug info (with diagnostic trace from extraction)
+      self._showDebug(cleanText, best.confidence, best.label, text.length - cleanText.length, extracted.trace);
 
       // Fill form
       var setVal = function (id, val) {

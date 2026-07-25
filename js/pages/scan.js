@@ -236,31 +236,30 @@ var pageScan = {
     if (ocrEl) ocrEl.classList.add('show');
     showLoading('Preparando OCR...');
 
-    // Read file into Image for preprocessing
+    // Read file into Image for preprocessing + dual OCR
     var reader = new FileReader();
     reader.onload = function (e) {
       var img = new Image();
       img.onload = function () {
-        // ---- Image preprocessing pipeline ----
-        var processed;
+        // Build enhanced version
+        var processed = null;
         try {
-          processed = OcrPreprocess.process(img);
-          // Show preprocessed preview thumbnail
+          processed = OcrPreprocess.enhance(img);
           self._showProcessedPreview(processed);
         } catch (preErr) {
-          console.warn('Preprocessing failed, using original:', preErr);
-          processed = img;
+          console.warn('Preprocessing failed:', preErr);
         }
 
-        // Run Tesseract on the processed image
-        self._runTesseract(processed);
+        // Run OCR on BOTH original and processed, pick best confidence
+        self._runDualOcr(img, processed);
       };
       img.src = e.target.result;
     };
     reader.readAsDataURL(file);
   },
 
-  _runTesseract: function (imageOrCanvas) {
+  /* Run OCR on two images and pick the result with better confidence */
+  _runDualOcr: function (original, processed) {
     var self = this;
     var ocrEl = document.getElementById('ocrLoading');
 
@@ -277,24 +276,69 @@ var pageScan = {
       txtEl.textContent = msgs[status] || (status + '...');
     };
 
-    // Use simple Tesseract API — the convenience function handles worker lifecycle
-    Tesseract.recognize(imageOrCanvas, 'spa', {
-      logger: function (m) {
-        if (!m || !m.status) return;
-        var pct = m.progress ? Math.round(m.progress * 100) : 0;
-        updateProgress(m.status, pct);
+    var runOne = function (image, label) {
+      return Tesseract.recognize(image, 'spa', {
+        logger: function (m) {
+          if (!m || !m.status) return;
+          var pct = m.progress ? Math.round(m.progress * 100) : 0;
+          updateProgress(m.status + ' (' + label + ')', pct);
+        }
+      }).then(function (result) {
+        return { text: result.data.text || '', confidence: result.data.confidence || 0, label: label };
+      }).catch(function (err) {
+        console.warn('OCR ' + label + ' failed:', err);
+        return { text: '', confidence: 0, label: label };
+      });
+    };
+
+    // Always run on enhanced image first, then original as fallback
+    var promises = [];
+    if (processed) {
+      promises.push(runOne(processed, 'mejorada'));
+    }
+    promises.push(runOne(original, 'original'));
+
+    Promise.all(promises).then(function (results) {
+      // Pick best by confidence
+      var best = null;
+      for (var i = 0; i < results.length; i++) {
+        if (!best || results[i].confidence > best.confidence) {
+          best = results[i];
+        }
       }
-    }).then(function (result) {
-      var text = result.data.text || '';
-      var confidence = result.data.confidence || 0;
 
-      // Show raw OCR output in debug panel
-      self._showDebug(text, confidence);
+      if (!best || !best.text) {
+        hideLoading();
+        showToast('OCR no pudo leer la imagen. Intenta con mejor luz.', 'info');
+        return;
+      }
 
-      // Extract structured data from OCR text
-      var extracted = self._extractInvoiceData(text);
+      var text = best.text;
 
-      // Fill form with extracted values
+      // ---- NOISE FILTER: remove garbage lines ----
+      // Lines that are mostly symbols/artifacts have very high ratio of non-alphanumeric chars
+      var rawLines = text.split('\n');
+      var filteredLines = [];
+      for (var i = 0; i < rawLines.length; i++) {
+        var line = rawLines[i].trim();
+        if (!line) continue;
+        // Count alphanumeric chars (including Spanish accented chars)
+        var alpha = (line.match(/[A-Za-zÁÉÍÓÚÑáéíóúñ0-9]/g) || []).length;
+        var ratio = alpha / Math.max(line.length, 1);
+        // Keep lines that have >30% alphanumeric content
+        if (ratio > 0.3 && line.length > 1) {
+          filteredLines.push(line);
+        }
+      }
+      var cleanText = filteredLines.join('\n');
+
+      // Show debug info
+      self._showDebug(cleanText, best.confidence, best.label, text.length - cleanText.length);
+
+      // Extract data
+      var extracted = self._extractInvoiceData(cleanText);
+
+      // Fill form
       var setVal = function (id, val) {
         var el = document.getElementById(id);
         if (el && val !== undefined && val !== null && val !== '') el.value = val;
@@ -312,35 +356,33 @@ var pageScan = {
 
       hideLoading();
 
-      // Build result toast
+      // Toast
       var parts = [];
       if (extracted.supplier) parts.push('Proveedor: ' + extracted.supplier);
       if (extracted.date) parts.push('Fecha: ' + extracted.date);
       if (extracted.total) parts.push('Total: ' + extracted.total + '€');
-      if (extracted.ivaRate) parts.push('IVA: ' + extracted.ivaRate + '%');
       if (extracted.category) {
         var catDef = CATEGORIES.find(function (c) { return c.value === extracted.category; });
-        var catLabel = catDef ? catDef.label : extracted.category;
-        parts.push(catDef ? catDef.icon + ' ' + catLabel : catLabel);
+        parts.push(catDef ? catDef.icon + ' ' + catDef.label : extracted.category);
       }
       if (parts.length > 0) {
-        showToast(parts.join(' | ') + ' | Confianza: ' + confidence + '%', 'success');
+        showToast(parts.join(' | ') + ' | ' + best.confidence + '%', 'success');
       } else {
-        showToast('OCR completado con confianza ' + confidence + '%. Revisa los campos.', 'info');
+        showToast('Confianza: ' + best.confidence + '%. Completa los campos.', 'info');
       }
 
-      // Upload original image to storage (not preprocessed, we want original)
+      // Upload original
       var filename = 'incoming/' + Date.now() + '_' + Math.random().toString(36).substring(2, 8) + '.jpg';
       uploadImage(self._state.photoFile, filename).then(function () {
         self._state.imageFilename = filename;
       }).catch(function (err) {
-        console.error('Upload error (non-critical):', err);
+        console.error('Upload error:', err);
       });
 
     }).catch(function (err) {
       hideLoading();
       console.error('OCR error:', err);
-      showToast('OCR fallo, completa los campos manualmente. ' + (err.message || ''), 'info');
+      showToast('OCR fallo: ' + (err.message || 'error desconocido'), 'info');
     }).finally(function () {
       self._state.ocrLoading = false;
       if (ocrEl) ocrEl.classList.remove('show');
@@ -348,7 +390,7 @@ var pageScan = {
   },
 
   /* Show raw OCR text + confidence in debug panel */
-  _showDebug: function (text, confidence) {
+  _showDebug: function (text, confidence, source, removedChars) {
     var panel = document.getElementById('ocrDebug');
     var textEl = document.getElementById('ocrDebugText');
     var confEl = document.getElementById('ocrConfidence');
@@ -358,12 +400,14 @@ var pageScan = {
     if (panel) panel.style.display = 'block';
     if (textEl) textEl.textContent = text || '(sin texto)';
     if (confEl) {
-      var css = confidence > 70 ? 'color:var(--stamp-green)' : (confidence > 40 ? 'color:var(--amount-orange)' : 'color:var(--seal-red)');
-      confEl.textContent = '(confianza: ' + confidence + '%)';
-      confEl.style.cssText = css + ';font-size:11px;margin-left:6px';
+      var color = confidence > 70 ? 'var(--stamp-green)' : (confidence > 40 ? 'var(--amount-orange)' : 'var(--seal-red)');
+      var info = '(confianza: ' + confidence + '%, fuente: ' + source;
+      if (removedChars > 0) info += ', ruido eliminado: ' + removedChars + ' car.';
+      info += ')';
+      confEl.textContent = info;
+      confEl.style.cssText = 'color:' + color + ';font-size:11px;margin-left:6px';
     }
 
-    // Toggle debug text visibility
     if (toggle) {
       toggle.onclick = function () {
         var show = textEl.style.display === 'none';

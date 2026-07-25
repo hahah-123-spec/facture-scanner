@@ -61,7 +61,7 @@ var pageProfile = {
         '<div class="card">' +
           '<div class="profile-row">' +
             '<span class="row-label">Version</span>' +
-            '<span class="row-value" id="profileVersion">v5</span>' +
+            '<span class="row-value" id="profileVersion">v6</span>' +
           '</div>' +
         '</div>' +
       '</div>' +

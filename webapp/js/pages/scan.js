@@ -229,20 +229,55 @@ var pageScan = {
     if (ocrEl) ocrEl.classList.add('show');
     showLoading('Preparando OCR...');
 
+    // Read file into Image for preprocessing
+    var reader = new FileReader();
+    reader.onload = function (e) {
+      var img = new Image();
+      img.onload = function () {
+        // ---- Image preprocessing pipeline ----
+        var processed;
+        try {
+          processed = OcrPreprocess.process(img);
+          // Show preprocessed preview thumbnail
+          self._showProcessedPreview(processed);
+        } catch (preErr) {
+          console.warn('Preprocessing failed, using original:', preErr);
+          processed = img;
+        }
+
+        // Run Tesseract on the processed image
+        self._runTesseract(processed);
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  },
+
+  _runTesseract: function (imageOrCanvas) {
+    var self = this;
+    var ocrEl = document.getElementById('ocrLoading');
+
     var updateProgress = function (status, pct) {
       var txtEl = document.getElementById('loadingText');
       if (!txtEl) return;
       var msgs = {
         'loading tesseract core': 'Descargando motor OCR...',
         'initializing tesseract': 'Inicializando motor...',
-        'loading language traineddata': 'Descargando espanol ' + pct + '%',
+        'loading language traineddata': 'Descargando español ' + pct + '%',
         'initializing api': 'Preparando reconocimiento...',
         'recognizing text': 'Reconociendo texto... ' + pct + '%'
       };
       txtEl.textContent = msgs[status] || (status + '...');
     };
 
-    Tesseract.recognize(file, 'spa', {
+    Tesseract.recognize(imageOrCanvas, 'spa', {
+      // Optimized config for invoices:
+      // PSM 4 = single column of text of variable sizes (best for invoices)
+      // PSM 3 = fully automatic (fallback behavior)
+      tessedit_pageseg_mode: Tesseract.PSM ? Tesseract.PSM.SINGLE_COLUMN : 4,
+      // Disable dictionaries — invoice text has codes, NIFs, etc.
+      load_system_dawg: 'F',
+      load_freq_dawg: 'F',
       logger: function (m) {
         if (!m || !m.status) return;
         var pct = m.progress ? Math.round(m.progress * 100) : 0;
@@ -250,6 +285,8 @@ var pageScan = {
       }
     }).then(function (result) {
       var text = result.data.text;
+      console.log('OCR raw text:', text); // Debug: see what Tesseract reads
+
       var extracted = self._extractInvoiceData(text);
 
       // Fill form with extracted values
@@ -283,9 +320,9 @@ var pageScan = {
       }
       showToast(parts.join(' | '), 'success');
 
-      // Upload image to storage
+      // Upload original image to storage (not preprocessed, we want original)
       var filename = 'incoming/' + Date.now() + '_' + Math.random().toString(36).substring(2, 8) + '.jpg';
-      uploadImage(file, filename).then(function () {
+      uploadImage(self._state.photoFile, filename).then(function () {
         self._state.imageFilename = filename;
       }).catch(function (err) {
         console.error('Upload error (non-critical):', err);
@@ -299,6 +336,31 @@ var pageScan = {
       self._state.ocrLoading = false;
       if (ocrEl) ocrEl.classList.remove('show');
     });
+  },
+
+  /* Show a small thumbnail of the preprocessed image */
+  _showProcessedPreview: function (canvas) {
+    try {
+      var container = document.getElementById('photoArea');
+      if (!container) return;
+
+      // Remove old processed preview
+      var old = container.querySelector('.processed-thumb');
+      if (old) old.remove();
+
+      var thumb = document.createElement('div');
+      thumb.className = 'processed-thumb';
+      thumb.style.cssText = 'position:absolute;bottom:6px;right:6px;width:80px;height:60px;' +
+        'border:2px solid var(--stamp-green);border-radius:6px;overflow:hidden;opacity:0.9;z-index:3';
+      thumb.title = 'Imagen procesada para OCR';
+
+      var mini = document.createElement('img');
+      mini.src = canvas.toDataURL('image/png');
+      mini.style.cssText = 'width:100%;height:100%;object-fit:cover';
+      thumb.appendChild(mini);
+
+      container.appendChild(thumb);
+    } catch (e) { /* non-critical */ }
   },
 
   /* ================================================================

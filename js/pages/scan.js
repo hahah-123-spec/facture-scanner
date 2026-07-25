@@ -590,7 +590,7 @@ var pageScan = {
     // ----- SUPPLIER NAME EXTRACTION -----
     var supplier = '';
     // Strategy 1: company suffix (S.L., S.A., S.L.U., S.C.P., S.COOP, C.B., etc.)
-    var suffixRegex = /\b([5S]\.?[LI1]\.?(?:[Uu]\.?)?|[5S]\.?[A4]\.?(?:[Uu]\.?)?|[5S]\.?[C<]\.?[Pp]\.?|[5S]\.?COOP\.?|[C<]\.?[B8]\.?|[5S]\.?[LI1]\.?[LI1]\.?)\b/i;
+    var suffixRegex = /\b(S\.?L\.?(?:U\.?)?|S\.?A\.?(?:U\.?)?|S\.?C\.?P\.?|S\.?COOP\.?|C\.?B\.?|S\.?L\.?L\.?)\b/i;
     for (var k = 0; k < lines.length; k++) {
       if (suffixRegex.test(lines[k]) && lines[k].length > 6) {
         supplier = lines[k].replace(/[,\s]+$/, '');
@@ -773,21 +773,24 @@ var pageScan = {
       }
     }
 
-    // Strategy 3: standalone valid rate numbers (10,00 or 21,00 or 10.00) in footer tax section
-    // Tax section lines often have rates shown as plain numbers like "10,00" near IVA column
+    // Strategy 3: standalone valid rate numbers anywhere (e.g., "10,00 |" in tax table)
     if (!ivaRate) {
-      for (var ss = 0; ss < footerLines.length; ss++) {
-        // Match standalone "10,00" or "21,00" or "10.00" patterns (allow trailing chars)
-        var fl = footerLines[ss];
-        var plainMatch = fl.match(/^(\d{1,2})[,.]\d{2}\s*\|?\s*$/);
+      for (var ss = 0; ss < lines.length; ss++) {
+        var fl = lines[ss];
+        // Match standalone rate-like numbers: "10,00", "10.00", "10,00 |", "10.00 |"
+        var plainMatch = fl.match(/(?:^|\s)(\d{1,2})[,.]\d{2}\s*\|?\s*$/);
         if (plainMatch) {
           var pr = parseInt(plainMatch[1], 10);
-          if (isValidIvaRate(pr)) { ivaRate = pr; break; }
+          if (isValidIvaRate(pr)) { ivaRate = pr; trace.push('iva:standalone=' + pr); break; }
         }
-        // Also match "10 %" or "10%" anywhere in footer
-        var loosePct = fl.match(/(\d{1,2})\s*%/);
-        if (loosePct && isValidIvaRate(parseInt(loosePct[1], 10))) {
-          ivaRate = parseInt(loosePct[1], 10); break;
+      }
+    }
+    // Strategy 3b: even looser — any "X%" or "X %" in document
+    if (!ivaRate) {
+      for (var tt = 0; tt < lines.length; tt++) {
+        var lp = lines[tt].match(/(\d{1,2})\s*%/);
+        if (lp && isValidIvaRate(parseInt(lp[1], 10))) {
+          ivaRate = parseInt(lp[1], 10); trace.push('iva:loose_pct=' + ivaRate); break;
         }
       }
     }

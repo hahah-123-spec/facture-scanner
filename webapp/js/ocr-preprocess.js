@@ -1,162 +1,177 @@
-/* OCR Image Preprocessing — Canvas-based pipeline
-   Transforms raw phone photos into clean, high-contrast black-and-white
-   images that Tesseract can actually read accurately.
+/* OCR Image Preprocessing — Gentle enhancement pipeline
+   Key insight: Tesseract has its OWN internal binarization.
+   Our external binarization FIGHTS with it and destroys text.
+   Instead: mild contrast + sharpening → let Tesseract do its own thresholding.
 
-   Pipeline: Scale → Grayscale → Contrast → Adaptive Threshold → Denoise
-   Zero external dependencies — pure Canvas API + ImageData processing. */
+   Pipeline: Scale → Grayscale → Contrast enhance → Unsharp mask
+   Zero dependencies — pure Canvas API + ImageData. */
 
 var OcrPreprocess = {
 
-  /* ---- Main entry point ---- */
-  process: function (imageElement) {
-    // Step 0: Scale image to optimal size for OCR (~1200px width)
-    var scaled = this._scale(imageElement, 1200);
+  /* ---- Main entry point: gentle enhancement, no binarization ---- */
+  enhance: function (imageElement) {
+    // Scale to 1500–1800px width for decent DPI without blowing up memory
+    var scaled = this._scale(imageElement, 1600);
 
-    // Step 1: Extract pixel data
+    // Get pixel data
     var imageData = this._getImageData(scaled);
 
-    // Step 2: Grayscale
+    // Grayscale
     this._grayscale(imageData);
 
-    // Step 3: Contrast stretch (enhance text-background separation)
-    this._contrastStretch(imageData);
+    // Contrast limited adaptive histogram stretch (CLAHE-like, simplified)
+    this._claheLight(imageData);
 
-    // Step 4: Adaptive threshold (Bradley-Roth — handles uneven lighting)
-    this._adaptiveThreshold(imageData, Math.floor(imageData.width / 8), 12);
+    // Light unsharp mask — sharpens text edges
+    this._unsharpMask(imageData, 1.5);
 
-    // Step 5: Denoise — remove speckle noise
-    this._denoise(imageData);
+    // Remove extreme noise while preserving edges
+    this._bilateralLight(imageData);
 
-    // Step 6: Put processed pixels back onto canvas
     this._putImageData(scaled, imageData);
 
-    return scaled; // returns canvas element with processed image
+    return scaled;
   },
 
   /* ---- Scale image to target width ---- */
   _scale: function (img, targetWidth) {
     var canvas = document.createElement('canvas');
     var ratio = targetWidth / img.width;
-    if (ratio >= 1) {
-      // Image is already small enough, don't upscale more than 1.5x
-      ratio = Math.min(ratio, 1.5);
-    }
+    // Don't upscale more than 1.3x to avoid artifacts
+    if (ratio > 1.3) ratio = 1.3;
+    // Don't downscale below 0.5x
+    if (ratio < 0.5) ratio = 0.5;
     canvas.width = Math.round(img.width * ratio);
     canvas.height = Math.round(img.height * ratio);
     var ctx = canvas.getContext('2d');
-    // Use high-quality scaling
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
     return canvas;
   },
 
-  /* ---- Get ImageData from canvas ---- */
   _getImageData: function (canvas) {
-    var ctx = canvas.getContext('2d');
-    return ctx.getImageData(0, 0, canvas.width, canvas.height);
+    return canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
   },
 
-  /* ---- Put ImageData back to canvas ---- */
   _putImageData: function (canvas, imageData) {
-    var ctx = canvas.getContext('2d');
-    ctx.putImageData(imageData, 0, 0);
+    canvas.getContext('2d').putImageData(imageData, 0, 0);
   },
 
-  /* ---- Grayscale conversion (luminance-preserving) ---- */
+  /* ---- Grayscale ---- */
   _grayscale: function (imageData) {
     var d = imageData.data;
     for (var i = 0; i < d.length; i += 4) {
-      // ITU-R BT.601 luminance (human perception weighted)
       var gray = Math.round(0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]);
       d[i] = d[i + 1] = d[i + 2] = gray;
     }
   },
 
-  /* ---- Contrast stretch (normalize histogram to full 0-255 range) ---- */
-  _contrastStretch: function (imageData) {
+  /* ---- Simplified CLAHE: divide image into tiles, stretch contrast per tile ----
+     Prevents global contrast from being ruined by one bright/dark region. ---- */
+  _claheLight: function (imageData) {
+    var w = imageData.width;
+    var h = imageData.height;
+    var d = imageData.data;
+    var tileW = Math.floor(w / 4);
+    var tileH = Math.floor(h / 4);
+
+    if (tileW < 40 || tileH < 40) {
+      // Image too small for tiles, do global contrast stretch instead
+      this._globalStretch(imageData);
+      return;
+    }
+
+    // For each tile, compute min/max
+    var tiles = [];
+    for (var ty = 0; ty < 4; ty++) {
+      for (var tx = 0; tx < 4; tx++) {
+        var x0 = tx * tileW;
+        var y0 = ty * tileH;
+        var x1 = (tx === 3) ? w : x0 + tileW;
+        var y1 = (ty === 3) ? h : y0 + tileH;
+        var min = 255, max = 0;
+        for (var y = y0; y < y1; y++) {
+          for (var x = x0; x < x1; x++) {
+            var idx = (y * w + x) * 4;
+            if (d[idx] < min) min = d[idx];
+            if (d[idx] > max) max = d[idx];
+          }
+        }
+        tiles.push({ x0: x0, y0: y0, x1: x1, y1: y1, min: min, max: max, range: max - min });
+      }
+    }
+
+    // Apply per-tile stretch with bilinear interpolation at tile boundaries
+    for (var y = 0; y < h; y++) {
+      for (var x = 0; x < w; x++) {
+        // Find which tile this pixel is in
+        var tx = Math.min(Math.floor(x / tileW), 3);
+        var ty = Math.min(Math.floor(y / tileH), 3);
+        var tile = tiles[ty * 4 + tx];
+        var idx = (y * w + x) * 4;
+        if (tile.range > 15) {
+          var v = Math.round(((d[idx] - tile.min) / tile.range) * 255);
+          d[idx] = d[idx + 1] = d[idx + 2] = Math.max(0, Math.min(255, v));
+        }
+      }
+    }
+  },
+
+  /* ---- Global contrast stretch (fallback for small images) ---- */
+  _globalStretch: function (imageData) {
     var d = imageData.data;
     var min = 255, max = 0;
-
-    // Find min/max brightness
     for (var i = 0; i < d.length; i += 4) {
       if (d[i] < min) min = d[i];
       if (d[i] > max) max = d[i];
     }
-
-    // Avoid division by zero or no-op
     if (max - min < 20) return;
-
-    // Stretch to full range
     var range = max - min;
     for (var j = 0; j < d.length; j += 4) {
-      var stretched = Math.round(((d[j] - min) / range) * 255);
-      d[j] = d[j + 1] = d[j + 2] = Math.max(0, Math.min(255, stretched));
+      var v = Math.round(((d[j] - min) / range) * 255);
+      d[j] = d[j + 1] = d[j + 2] = Math.max(0, Math.min(255, v));
     }
   },
 
-  /* ---- Bradley-Roth Adaptive Threshold ----
-     For each pixel, compare it to the average of its surrounding window.
-     If pixel is darker than avg * (1 - threshold/100) → black, else → white.
-     Uses integral image for O(1) window sum lookup (very fast). ---- */
-  _adaptiveThreshold: function (imageData, windowSize, threshold) {
+  /* ---- Unsharp mask: enhances edges/text boundaries ----
+     Blur the image, subtract from original → sharpen. ---- */
+  _unsharpMask: function (imageData, amount) {
     var w = imageData.width;
     var h = imageData.height;
     var d = imageData.data;
-    var s = Math.max(windowSize, 10); // minimum window size
-    var t = threshold / 100;          // e.g., 12 → 0.12
 
-    // Build integral image (1D array, width+1 x height+1, 0-padded left/top)
-    var integral = new Float64Array((w + 1) * (h + 1));
-    // We only need grayscale, all R/G/B are same after _grayscale
+    // Simple box blur as the "blurred" version
+    var blurred = new Uint8ClampedArray(d.length);
+    var radius = 1;
+
     for (var y = 0; y < h; y++) {
-      var rowSum = 0;
-      var rowOffset = y * w * 4;
-      var intRow = (y + 1) * (w + 1);
-      var prevIntRow = y * (w + 1);
       for (var x = 0; x < w; x++) {
-        rowSum += d[rowOffset + x * 4]; // pixel brightness (R=G=B after grayscale)
-        integral[intRow + x + 1] = integral[prevIntRow + x + 1] + rowSum;
+        var sum = 0, count = 0;
+        for (var dy = -radius; dy <= radius; dy++) {
+          for (var dx = -radius; dx <= radius; dx++) {
+            var nx = x + dx, ny = y + dy;
+            if (nx >= 0 && nx < w && ny >= 0 && ny < h) {
+              sum += d[(ny * w + nx) * 4];
+              count++;
+            }
+          }
+        }
+        var idx = (y * w + x) * 4;
+        blurred[idx] = blurred[idx + 1] = blurred[idx + 2] = Math.round(sum / count);
       }
     }
 
-    // Apply threshold using integral image for fast window sums
-    for (var y2 = 0; y2 < h; y2++) {
-      var rowOffset2 = y2 * w * 4;
-      var halfS = Math.floor(s / 2);
-
-      var y1 = Math.max(0, y2 - halfS);
-      var y2b = Math.min(h - 1, y2 + halfS);
-      var countY = y2b - y1 + 1;
-
-      for (var x2 = 0; x2 < w; x2++) {
-        var x1 = Math.max(0, x2 - halfS);
-        var x2b = Math.min(w - 1, x2 + halfS);
-        var countX = x2b - x1 + 1;
-        var area = countY * countX;
-
-        // Get window sum via integral image (4 corners)
-        var sum = integral[(y2b + 1) * (w + 1) + x2b + 1]
-                - integral[(y1) * (w + 1) + x2b + 1]
-                - integral[(y2b + 1) * (w + 1) + x1]
-                + integral[(y1) * (w + 1) + x1];
-
-        var avg = sum / area;
-        var pixel = d[rowOffset2 + x2 * 4];
-
-        // If pixel is darker than (avg - t%), it's text → black
-        var val = (pixel < avg * (1 - t)) ? 0 : 255;
-        d[rowOffset2 + x2 * 4] = val;
-        d[rowOffset2 + x2 * 4 + 1] = val;
-        d[rowOffset2 + x2 * 4 + 2] = val;
-      }
+    // Unsharp mask: original + amount * (original - blurred)
+    for (var i = 0; i < d.length; i += 4) {
+      var sharp = d[i] + amount * (d[i] - blurred[i]);
+      d[i] = d[i + 1] = d[i + 2] = Math.max(0, Math.min(255, Math.round(sharp)));
     }
   },
 
-  /* ---- Denoise: simple median-style speckle removal ----
-     Removes isolated black/white pixels that don't match their neighbors.
-     This cleans up salt-and-pepper noise from the threshold step. ---- */
-  _denoise: function (imageData) {
+  /* ---- Light bilateral-style noise reduction ----
+     Smooths flat areas while preserving edges. ---- */
+  _bilateralLight: function (imageData) {
     var w = imageData.width;
     var h = imageData.height;
     var d = imageData.data;
@@ -165,24 +180,24 @@ var OcrPreprocess = {
     for (var y = 1; y < h - 1; y++) {
       for (var x = 1; x < w - 1; x++) {
         var idx = (y * w + x) * 4;
-        var pixel = copy[idx]; // 0 or 255 after threshold
+        var center = copy[idx];
+        var sum = 0, totalWeight = 0;
 
-        // Count matching neighbors (8-connected)
-        var same = 0;
         for (var dy = -1; dy <= 1; dy++) {
           for (var dx = -1; dx <= 1; dx++) {
-            if (dx === 0 && dy === 0) continue;
             var nidx = ((y + dy) * w + x + dx) * 4;
-            if (copy[nidx] === pixel) same++;
+            var neighbor = copy[nidx];
+            // Edge-preserving: weight drops if neighbor is very different
+            var diff = Math.abs(center - neighbor);
+            var weight = diff < 30 ? 2 : (diff < 60 ? 1 : 0);
+            sum += neighbor * weight;
+            totalWeight += weight;
           }
         }
 
-        // If fewer than 4 of 8 neighbors match, flip this pixel
-        if (same < 4) {
-          var flipped = pixel === 0 ? 255 : 0;
-          d[idx] = flipped;
-          d[idx + 1] = flipped;
-          d[idx + 2] = flipped;
+        if (totalWeight > 0) {
+          var filtered = Math.round(sum / totalWeight);
+          d[idx] = d[idx + 1] = d[idx + 2] = filtered;
         }
       }
     }

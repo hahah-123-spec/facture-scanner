@@ -346,7 +346,7 @@ var pageScan = {
       var cleanText = deduped.join('\n');
 
       // Show debug info
-      self._showDebug(cleanText, best.confidence, best.label, text.length - cleanText.length);
+      self._showDebug(cleanText, best.confidence, best.label, text.length - cleanText.length, extracted.trace);
 
       // Extract data
       var extracted = self._extractInvoiceData(cleanText);
@@ -403,7 +403,7 @@ var pageScan = {
   },
 
   /* Show raw OCR text + confidence in debug panel */
-  _showDebug: function (text, confidence, source, removedChars) {
+  _showDebug: function (text, confidence, source, removedChars, trace) {
     var panel = document.getElementById('ocrDebug');
     var textEl = document.getElementById('ocrDebugText');
     var confEl = document.getElementById('ocrConfidence');
@@ -411,11 +411,16 @@ var pageScan = {
     var arrow = document.getElementById('ocrDebugArrow');
 
     if (panel) panel.style.display = 'block';
-    if (textEl) textEl.textContent = text || '(sin texto)';
+    // Show filtered text + trace
+    var display = text || '(sin texto)';
+    if (trace && trace.length > 0) {
+      display += '\n\n--- DIAGNOSTICO ---\n' + trace.join('\n');
+    }
+    if (textEl) textEl.textContent = display;
     if (confEl) {
       var color = confidence > 70 ? 'var(--stamp-green)' : (confidence > 40 ? 'var(--amount-orange)' : 'var(--seal-red)');
       var info = '(confianza: ' + confidence + '%, fuente: ' + source;
-      if (removedChars > 0) info += ', ruido eliminado: ' + removedChars + ' car.';
+      if (removedChars > 0) info += ', ruido: ' + removedChars + 'c';
       info += ')';
       confEl.textContent = info;
       confEl.style.cssText = 'color:' + color + ';font-size:11px;margin-left:6px';
@@ -462,17 +467,19 @@ var pageScan = {
      Multi-strategy + OCR error correction (S↔5, O↔0, I↔1, accents)
      ================================================================ */
   _extractInvoiceData: function (text) {
-    // Sanitize OCR output: merge split lines, fix common OCR errors
+    // Sanitize OCR output
     var clean = text
-      .replace(/[|]/g, '/')          // OCR often reads / as |
-      .replace(/\b([A-Z])\s+(?=[a-z])/g, '$1') // un-split "P roveedor" → "Proveedor"
-      .replace(/(\d)\s+([.,]\d{2})/g, '$1$2'); // fix "1 234,56" → "1234,56"
+      .replace(/[|]/g, '/')
+      .replace(/\b([A-Z])\s+(?=[a-z])/g, '$1')
+      .replace(/(\d)\s+([.,]\d{2})/g, '$1$2');
 
     var lines = clean.split('\n').map(function (l) { return l.trim(); }).filter(Boolean);
+    var fullText = lines.join(' ');
+    var trace = [];
+    trace.push('lines=' + lines.length + ' chars=' + fullText.length);
 
-    // ---- OCR error correction helper ----
+    // ---- Helpers ----
     var fixOcrNumber = function (s) {
-      // Fix common misreads in numbers: O→0, S→5, I→1, l→1, Z→2, B→8
       return s.replace(/[OoSs]/g, function (c) {
         if (c === 'O' || c === 'o') return '0';
         if (c === 'S' || c === 's') return '5';
@@ -480,27 +487,18 @@ var pageScan = {
       }).replace(/[lI]/g, '1').replace(/Z/g, '2').replace(/B/g, '8');
     };
 
-    // Helper: parse Spanish amount "1.234,56" or "1234,56" or "1,234.56" → float
     var parseAmount = function (s) {
       if (!s) return NaN;
       s = s.replace(/[€Ee]/g, '').replace(/\s/g, '');
       s = fixOcrNumber(s);
-      // Spanish format: 1.234,56 → decimal comma, thousand dot
       if (/^\d{1,3}(\.\d{3})*,\d{2}$/.test(s)) {
         s = s.replace(/\./g, '').replace(',', '.');
       } else if (/^\d{1,3}(,\d{3})*\.\d{2}$/.test(s)) {
-        // English format: 1,234.56
         s = s.replace(/,/g, '');
       } else if (s.indexOf(',') !== -1 && s.indexOf('.') !== -1) {
-        // Ambiguous: if last separator is comma → Spanish, else English
-        var lastComma = s.lastIndexOf(',');
-        var lastDot = s.lastIndexOf('.');
-        if (lastComma > lastDot) {
-          s = s.replace(/\./g, '').replace(',', '.');
-        } else {
-          s = s.replace(/,/g, '');
-        }
-      } else if (s.indexOf(',') !== -1 && /,\d{2}$/.test(s)) {
+        var lastComma = s.lastIndexOf(','), lastDot = s.lastIndexOf('.');
+        s = lastComma > lastDot ? s.replace(/\./g, '').replace(',', '.') : s.replace(/,/g, '');
+      } else if (/,\d{2}$/.test(s)) {
         s = s.replace(',', '.');
       } else {
         s = s.replace(/,/g, '');
@@ -508,16 +506,18 @@ var pageScan = {
       return parseFloat(s);
     };
 
-    // Find first amount in a string
     var findAmountInLine = function (line) {
       var m = line.match(/(\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{2}))/);
       return m ? parseAmount(m[1]) : NaN;
     };
 
-    // Find all amounts in text sorted descending
     var findAllAmounts = function (t) {
       var matches = t.match(/\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{2})/g) || [];
       return matches.map(parseAmount).filter(function (n) { return !isNaN(n) && n > 0; });
+    };
+
+    var isValidIvaRate = function (r) {
+      return [21, 10, 4, 7, 5, 14].indexOf(r) >= 0;
     };
 
     // ----- DATE EXTRACTION -----
@@ -594,6 +594,7 @@ var pageScan = {
     for (var k = 0; k < lines.length; k++) {
       if (suffixRegex.test(lines[k]) && lines[k].length > 6) {
         supplier = lines[k].replace(/[,\s]+$/, '');
+        trace.push('supplier:suffix=' + supplier.substring(0,30));
         break;
       }
     }
@@ -610,6 +611,7 @@ var pageScan = {
             // Person name: 2-3 words, first letter capital (OCR may output ALL CAPS)
             if (/^[A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑáéíóúñ]+\s+[A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑáéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑáéíóúñ]+)?$/.test(candidate)) {
               supplier = candidate;
+              trace.push('supplier:dni_name=' + supplier.substring(0,30));
               break;
             }
           }
@@ -627,6 +629,7 @@ var pageScan = {
               var cand = lines[idx].replace(/[,\s]+$/, '');
               if (cand.length > 3 && !/^\d/.test(cand) && !/nif|cif|dni|fecha|factura|pag|telefono|email|www|http/i.test(cand)) {
                 supplier = cand;
+                trace.push('supplier:nif_nearby=' + supplier.substring(0,30));
                 break;
               }
             }
@@ -657,6 +660,7 @@ var pageScan = {
             && !/\d{4}/.test(nameLine)
             && !/factura|fecha|cliente|nif|cif|telefono|direccion|poblacion|provincia|email|www|http|pagina|pag/i.test(nameLine)) {
           supplier = nameLine;
+          trace.push('supplier:top_caps=' + supplier.substring(0,30));
           break;
         }
       }
@@ -664,7 +668,7 @@ var pageScan = {
 
     // ----- TOTAL EXTRACTION -----
     var total = 0;
-    var totalSource = '';
+    var totalSource = 'none';
     // Strategy 1: "TOTAL" keyword (with OCR error tolerance)
     for (var o = 0; o < lines.length; o++) {
       if (/^(TOTAL|TOTA[LI1]|IMPORTE\s*TOTAL|TOTAL\s+FACTURA|TOTAL\s+[€Ee]?|T\.TOTAL|T\.\s*TOTAL|TOTAL\s+EUR)/i.test(lines[o])) {
@@ -868,13 +872,16 @@ var pageScan = {
     // ----- AUTO-CATEGORIZATION -----
     var category = this._classifyCategory(text, supplier);
 
-    // ---- Implied IVA rate from base+total ----
+    // ---- Final fallback ----
     if (!ivaRate && base > 0 && total > 0 && total > base) {
       var implied = Math.round((total - base) / base * 100);
       if (implied === 21 || implied === 10 || implied === 4) {
         ivaRate = implied;
+        trace.push('iva:implied=' + implied);
       }
     }
+
+    trace.push('RESULT: supplier=' + (supplier||'EMPTY').substring(0,20) + ' date=' + (date||'EMPTY') + ' total=' + total + ' iva=' + ivaRate + '% base=' + base);
 
     return {
       supplier: supplier,
@@ -883,7 +890,8 @@ var pageScan = {
       ivaRate: ivaRate,
       total: total,
       invoiceNum: invoiceNum,
-      category: category
+      category: category,
+      trace: trace
     };
   },
 

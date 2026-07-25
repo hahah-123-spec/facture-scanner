@@ -1,5 +1,5 @@
 /* Service Worker — cache smart, update fast */
-var CACHE = 'facture-v9';
+var CACHE = 'facture-v10';
 
 self.addEventListener('install', function (e) {
   e.waitUntil(caches.open(CACHE));

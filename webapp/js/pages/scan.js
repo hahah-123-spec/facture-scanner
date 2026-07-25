@@ -597,17 +597,36 @@ var pageScan = {
         break;
       }
     }
-    // Strategy 2: NIF/CIF line — company name often right before or after
+    // Strategy 2: Person name (autónomo) pattern near NIF — "NAME SURNAME [SURNAME2]"
+    // Person NIF format: 12345678-X (DNI) or X1234567X (NIE)
     if (!supplier) {
-      for (var l = 0; l < lines.length; l++) {
-        if (/N[I1]F|C[I1]F|DN[I1]/i.test(lines[l])) {
-          // Check surrounding lines for a company name
-          for (var off = -2; off <= 2; off++) {
-            var idx = l + off;
-            if (idx >= 0 && idx < lines.length && idx !== l) {
-              var candidate = lines[idx].replace(/[,\s]+$/, '');
-              if (candidate.length > 5 && !/^\d/.test(candidate) && !/nif|cif|dni|fecha|factura|pag/i.test(candidate)) {
-                supplier = candidate;
+      for (var l = 0; l < Math.min(lines.length, 20); l++) {
+        // Look for Spanish DNI/NIF pattern: 8 digits + hyphen + letter
+        if (/\b\d{8}[\s\-]?[A-Z]\b/i.test(lines[l])) {
+          // Check lines above for a person name (2-3 capitalized words, no numbers)
+          for (var sOff = l - 5; sOff < l; sOff++) {
+            if (sOff < 0) continue;
+            var candidate = lines[sOff].replace(/[,\s]+$/, '');
+            // Person name: 2-3 words, first letter capital, no special chars except spaces/periods
+            if (/^[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)?$/.test(candidate)) {
+              supplier = candidate;
+              break;
+            }
+          }
+          if (supplier) break;
+        }
+      }
+    }
+    // Strategy 3: NIF/CIF line — company/name often right before
+    if (!supplier) {
+      for (var m = 0; m < Math.min(lines.length, 20); m++) {
+        if (/N[I1]F|C[I1]F|DN[I1]/i.test(lines[m])) {
+          for (var off = -3; off <= -1; off++) {
+            var idx = m + off;
+            if (idx >= 0) {
+              var cand = lines[idx].replace(/[,\s]+$/, '');
+              if (cand.length > 3 && !/^\d/.test(cand) && !/nif|cif|dni|fecha|factura|pag|telefono|email|www|http/i.test(cand)) {
+                supplier = cand;
                 break;
               }
             }
@@ -616,11 +635,11 @@ var pageScan = {
         }
       }
     }
-    // Strategy 3: line near "Proveedor" / "Razon Social" / "Empresa"
+    // Strategy 4: "Proveedor" / "Razon Social" / "Empresa" keyword
     if (!supplier) {
-      for (var m = 0; m < lines.length; m++) {
-        if (/proveedor|raz[oó]n\s*social|empresa|cliente/i.test(lines[m]) && m + 1 < lines.length) {
-          var next = lines[m + 1];
+      for (var n = 0; n < lines.length; n++) {
+        if (/proveedor|raz[oó]n\s*social|empresa|cliente/i.test(lines[n]) && n + 1 < lines.length) {
+          var next = lines[n + 1];
           if (next.length > 3 && !/^\d/.test(next) && !/fecha|factura|n[ií]f|cif/i.test(next)) {
             supplier = next.replace(/[,\s]+$/, '');
             break;
@@ -628,11 +647,15 @@ var pageScan = {
         }
       }
     }
-    // Strategy 4: first line that looks like a company name (capitalized, 5+ chars, in first 10 lines)
+    // Strategy 5: first line that looks like a name (2+ capitalized words, in first 18 lines)
     if (!supplier) {
-      for (var n = 0; n < Math.min(lines.length, 12); n++) {
-        var nameLine = lines[n];
-        if (nameLine.length > 5 && /^[A-ZÁÉÍÓÚÑ0-9][A-Za-zÁÉÍÓÚÑáéíóúñ0-9\s,\.\-&]{4,}$/.test(nameLine) && !/\d{4}/.test(nameLine) && !/factura|fecha|cliente|nif|cif|telefono|direccion|poblacion|provincia/i.test(nameLine)) {
+      for (var oo = 0; oo < Math.min(lines.length, 18); oo++) {
+        var nameLine = lines[oo];
+        if (nameLine.length > 5
+            && /^[A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑáéíóúñ\s,\.\-&]{4,}$/.test(nameLine)
+            && (nameLine.match(/[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+/g) || []).length >= 2
+            && !/\d{4}/.test(nameLine)
+            && !/factura|fecha|cliente|nif|cif|telefono|direccion|poblacion|provincia|email|www|http|pagina|pag/i.test(nameLine)) {
           supplier = nameLine;
           break;
         }
@@ -699,49 +722,76 @@ var pageScan = {
 
     // ----- IVA RATE EXTRACTION -----
     var ivaRate = 0;
-    // Strategy 1: percentage in summary/footer lines with IVA context
-    // Handles "10,0%", "21%", "IVA 21%", "10,0% IVA" etc.
-    // Look in last 40% of document where IVA breakdown typically appears
     var footerStart = Math.floor(lines.length * 0.55);
-    var footerText = lines.slice(footerStart).join(' ');
-    // Find percentages: "X%" or "X,X%" (Spanish decimal comma in percentages)
+    var footerLines = lines.slice(footerStart);
+    var footerText = footerLines.join(' ');
+
+    // Helper: check if a number is a valid Spanish IVA rate
+    var isValidIvaRate = function (r) {
+      return [21, 10, 4, 7, 5, 14].indexOf(r) >= 0;
+    };
+
+    // Strategy 1: percentage in footer (handles "10,0%", "21%", etc.)
     var pctPattern = /(\d{1,2})(?:[,.]\d)?\s*%/g;
-    var pctMatches = footerText.match(pctPattern);
-    if (pctMatches) {
-      for (var qq = 0; qq < pctMatches.length; qq++) {
-        var rMatch = pctMatches[qq].match(/(\d{1,2})/);
-        if (rMatch) {
-          var rate = parseInt(rMatch[1], 10);
-          // Valid Spanish IVA rates: 21, 10, 4 (and variations like 7, 5)
-          if (rate >= 4 && rate <= 25 && [21, 10, 4, 7, 5, 14].indexOf(rate) >= 0) {
-            ivaRate = rate;
-            break;
-          }
-        }
-      }
+    var allPcts = [];
+    var pm;
+    while ((pm = pctPattern.exec(clean)) !== null) {
+      allPcts.push(parseInt(pm[1], 10));
     }
-    // Strategy 2: look for percentage near "IVA" anywhere
+    // Prefer percentages found in footer section
+    for (var qq = 0; qq < allPcts.length; qq++) {
+      if (isValidIvaRate(allPcts[qq])) { ivaRate = allPcts[qq]; break; }
+    }
+
+    // Strategy 2: "IVA" keyword nearby — look for standalone rate numbers
     if (!ivaRate) {
       for (var rr = 0; rr < lines.length; rr++) {
         if (/[I1]VA|[I1]\.?V\.?A\.?/i.test(lines[rr])) {
+          // First try percentage
           var rateMatch = lines[rr].match(/(\d{1,2})(?:[,.]\d)?\s*%/);
           if (!rateMatch && rr + 1 < lines.length) {
             rateMatch = (lines[rr] + ' ' + lines[rr + 1]).match(/(\d{1,2})(?:[,.]\d)?\s*%/);
           }
-          if (rateMatch) {
-            var r2 = parseInt(rateMatch[1], 10);
-            if ([21, 10, 4, 7, 5, 14].indexOf(r2) >= 0) { ivaRate = r2; break; }
+          if (rateMatch && isValidIvaRate(parseInt(rateMatch[1], 10))) {
+            ivaRate = parseInt(rateMatch[1], 10);
+            break;
+          }
+          // Also check standalone numbers near IVA (e.g., "IVA 10" or "IVA 21,00")
+          if (!rateMatch) {
+            var ctx = lines.slice(Math.max(0, rr - 1), rr + 3).join(' ');
+            var standaloneMatch = ctx.match(/[I1]VA[:\s]*(\d{1,2})(?:[,.]\d{2})?(?:\s|$)/i);
+            if (standaloneMatch && isValidIvaRate(parseInt(standaloneMatch[1], 10))) {
+              ivaRate = parseInt(standaloneMatch[1], 10);
+              break;
+            }
           }
         }
       }
     }
-    // Strategy 3: "IVA 21" or "IVA21" or "IVA: 21"
+
+    // Strategy 3: standalone valid rate numbers (10,00 or 21,00 or 10.00) in footer tax section
+    // Tax section lines often have rates shown as plain numbers like "10,00" near IVA column
     if (!ivaRate) {
-      var ivaMatch = clean.match(/[I1]VA\s*[:.]?\s*(\d{1,2})/i);
-      if (ivaMatch) {
-        var ir = parseInt(ivaMatch[1], 10);
-        if ([21, 10, 4].indexOf(ir) >= 0) ivaRate = ir;
+      for (var ss = 0; ss < footerLines.length; ss++) {
+        // Match standalone "10,00" or "21,00" or "10.00" or "4,00" patterns
+        var fl = footerLines[ss];
+        var plainMatch = fl.match(/^(\d{1,2})[,.]\d{2}$/);
+        if (plainMatch) {
+          var pr = parseInt(plainMatch[1], 10);
+          if (isValidIvaRate(pr)) { ivaRate = pr; break; }
+        }
+        // Also match "10 %" or "10%" anywhere in footer
+        var loosePct = fl.match(/(\d{1,2})\s*%/);
+        if (loosePct && isValidIvaRate(parseInt(loosePct[1], 10))) {
+          ivaRate = parseInt(loosePct[1], 10); break;
+        }
       }
+    }
+
+    // Strategy 4: derive from base+total if we have both
+    if (!ivaRate && base > 0 && total > 0 && total > base) {
+      var implied = Math.round((total - base) / base * 100);
+      if (isValidIvaRate(implied)) ivaRate = implied;
     }
 
     // ----- BASE (Base Imponible) EXTRACTION -----
